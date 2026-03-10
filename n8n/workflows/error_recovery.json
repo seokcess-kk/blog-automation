@@ -1,0 +1,306 @@
+{
+  "name": "Blog Automation - Error Recovery",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/drafts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "eq.failed"
+            },
+            {
+              "name": "retry_count",
+              "value": "lt.3"
+            },
+            {
+              "name": "select",
+              "value": "id,title,keyword_id,retry_count,error_log"
+            },
+            {
+              "name": "limit",
+              "value": "3"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-failed",
+      "name": "Fetch Failed Drafts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-api-key",
+          "name": "Supabase API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-failed",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-failed",
+      "name": "Has Failed Drafts?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-items",
+      "name": "Process One by One",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "command": "python -m src.cli publish --draft-id \"{{ $json.id }}\""
+      },
+      "id": "retry-publish",
+      "name": "Retry Publish",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\ntry {\n  return [{ json: JSON.parse(output) }];\n} catch (e) {\n  return [{ json: { success: false, error: output } }];\n}"
+      },
+      "id": "parse-result",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "retry-success",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-success",
+      "name": "Retry Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "channel": "#blog-automation",
+        "text": ":white_check_mark: *Recovery Success*\n\n*Draft:* {{ $('Fetch Failed Drafts').item.json.title }}\n*URL:* {{ $json.post_url }}",
+        "otherOptions": {}
+      },
+      "id": "notify-recovery-success",
+      "name": "Notify Recovery Success",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1650, 100],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-webhook",
+          "name": "Slack Webhook"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/drafts?id=eq.{{ $('Fetch Failed Drafts').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"retry_count\": {{ $('Fetch Failed Drafts').item.json.retry_count + 1 }},\n  \"error_log\": \"{{ $json.error }}\"\n}",
+        "options": {}
+      },
+      "id": "increment-retry",
+      "name": "Increment Retry Count",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1650, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-api-key",
+          "name": "Supabase API Key"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "no-failed",
+      "name": "No Failed Drafts",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 400]
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Fetch Failed Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Failed Drafts": {
+      "main": [
+        [
+          {
+            "node": "Has Failed Drafts?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Failed Drafts?": {
+      "main": [
+        [
+          {
+            "node": "Process One by One",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Failed Drafts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process One by One": {
+      "main": [
+        [
+          {
+            "node": "Retry Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Publish": {
+      "main": [
+        [
+          {
+            "node": "Parse Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Result": {
+      "main": [
+        [
+          {
+            "node": "Retry Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Success?": {
+      "main": [
+        [
+          {
+            "node": "Notify Recovery Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Increment Retry Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "blog-automation"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-03-10T00:00:00.000Z",
+  "versionId": "1"
+}

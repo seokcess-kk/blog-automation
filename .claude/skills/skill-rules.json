@@ -1,0 +1,48 @@
+{
+  "skills": [
+    {
+      "name": "scrapling-guidelines",
+      "path": ".claude/skills/scrapling-guidelines/SKILL.md",
+      "enforcement": "suggest",
+      "triggers": {
+        "files": ["**/analyzer/**/*.py", "**/serp_*.py", "**/content_parser.py", "**/pattern_*.py"],
+        "keywords": ["scrapling", "StealthyFetcher", "Adaptor", "css_first", "크롤링", "수집", "파싱"]
+      },
+      "description": "Scrapling 라이브러리 사용 가이드라인 (읽기 전용 크롤링)"
+    },
+    {
+      "name": "playwright-guidelines",
+      "path": ".claude/skills/playwright-guidelines/SKILL.md",
+      "enforcement": "suggest",
+      "triggers": {
+        "files": ["**/publisher/**/*.py", "**/auth.py", "**/editor.py", "**/stealth.py"],
+        "keywords": ["playwright", "browser", "page.click", "page.fill", "자동화", "발행", "에디터"]
+      },
+      "description": "Playwright 라이브러리 사용 가이드라인 (쓰기 작업/발행)"
+    },
+    {
+      "name": "naver-seo",
+      "path": ".claude/skills/naver-seo/SKILL.md",
+      "enforcement": "suggest",
+      "triggers": {
+        "files": ["**/generator/**/*.py", "**/prompts/**/*.md", "**/prompt_builder.py"],
+        "keywords": ["SEO", "상위노출", "키워드", "제목", "소제목", "태그", "네이버"]
+      },
+      "description": "네이버 블로그 SEO 최적화 규칙"
+    },
+    {
+      "name": "medical-ad-law",
+      "path": ".claude/skills/medical-ad-law/SKILL.md",
+      "enforcement": "block",
+      "triggers": {
+        "files": ["**/generator/**/*.py", "**/prompts/**/*.md", "**/medical_ad_checker.py"],
+        "keywords": ["의료", "병원", "치료", "시술", "한의원", "건강", "다이어트", "피부과", "성형"]
+      },
+      "description": "의료광고법 준수 규칙 (위반 시 작업 중단)"
+    }
+  ],
+  "globalSettings": {
+    "autoActivate": true,
+    "logActivation": true
+  }
+}

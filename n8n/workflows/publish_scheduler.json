@@ -1,0 +1,238 @@
+{
+  "name": "Blog Automation - Publish Scheduler",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 10 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 발행 허용 시간대 확인 (09:00 ~ 18:00)\nconst hour = new Date().getHours();\nconst isAllowedTime = hour >= 9 && hour < 18;\n\nreturn [{ json: { isAllowedTime, currentHour: hour } }];"
+      },
+      "id": "check-time",
+      "name": "Check Publish Hours",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-allowed-time",
+              "leftValue": "={{ $json.isAllowedTime }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-allowed-time",
+      "name": "Is Allowed Time?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "command": "python -m src.cli check-schedule"
+      },
+      "id": "check-schedule",
+      "name": "Check Schedule",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\ntry {\n  return [{ json: JSON.parse(output) }];\n} catch (e) {\n  return [{ json: { success: false, error: output } }];\n}"
+      },
+      "id": "parse-result",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-published",
+              "leftValue": "={{ $json.published.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-published",
+      "name": "Has Published?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "channel": "#blog-automation",
+        "text": ":rocket: *Posts Published*\n\n{{ $json.published.map(p => `- ${p.title}: ${p.post_url}`).join('\\n') }}",
+        "otherOptions": {}
+      },
+      "id": "notify-published",
+      "name": "Notify Published",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1450, 100],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-webhook",
+          "name": "Slack Webhook"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "no-publish",
+      "name": "No Publish Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "outside-hours",
+      "name": "Outside Publish Hours",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 400]
+    }
+  ],
+  "connections": {
+    "Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Check Publish Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Publish Hours": {
+      "main": [
+        [
+          {
+            "node": "Is Allowed Time?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Allowed Time?": {
+      "main": [
+        [
+          {
+            "node": "Check Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Outside Publish Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Schedule": {
+      "main": [
+        [
+          {
+            "node": "Parse Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Result": {
+      "main": [
+        [
+          {
+            "node": "Has Published?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Published?": {
+      "main": [
+        [
+          {
+            "node": "Notify Published",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Publish Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "blog-automation"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-03-10T00:00:00.000Z",
+  "versionId": "1"
+}

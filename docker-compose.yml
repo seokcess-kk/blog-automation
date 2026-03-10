@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - '5678:5678'
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD:-changeme}
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - GENERIC_TIMEZONE=Asia/Seoul
+      - TZ=Asia/Seoul
+      # 워크플로우 실행 설정
+      - EXECUTIONS_PROCESS=main
+      - EXECUTIONS_TIMEOUT=3600
+      - EXECUTIONS_TIMEOUT_MAX=7200
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./:/app:ro  # 프로젝트 마운트 (Execute Command용, 읽기 전용)
+      - ./output:/app/output:rw  # 출력 디렉토리 (쓰기 가능)
+    working_dir: /app
+    restart: unless-stopped
+    networks:
+      - blog-automation
+
+  # Python 실행 환경 (n8n Execute Command용)
+  python-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    volumes:
+      - ./:/app
+      - ./output:/app/output
+    working_dir: /app
+    environment:
+      - PYTHONPATH=/app
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
+      - NAVER_CLIENT_ID=${NAVER_CLIENT_ID}
+      - NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - BLOG_A_USERNAME=${BLOG_A_USERNAME}
+      - BLOG_A_PASSWORD=${BLOG_A_PASSWORD}
+      - BLOG_B_USERNAME=${BLOG_B_USERNAME}
+      - BLOG_B_PASSWORD=${BLOG_B_PASSWORD}
+      - PUBLISH_MODE=${PUBLISH_MODE:-conservative}
+    restart: unless-stopped
+    networks:
+      - blog-automation
+    # 항상 실행 상태 유지 (n8n에서 docker exec로 호출)
+    command: ["tail", "-f", "/dev/null"]
+
+networks:
+  blog-automation:
+    driver: bridge
+
+volumes:
+  n8n_data:

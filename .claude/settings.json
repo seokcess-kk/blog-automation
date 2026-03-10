@@ -1,0 +1,61 @@
+{
+  "$schema": "https://claude.ai/schemas/claude-code-settings.json",
+  "project": {
+    "name": "blog-automation",
+    "description": "네이버 블로그 자동화 파이프라인"
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "name": "skill-activation-prompt",
+        "command": "bash .claude/hooks/skill-activation-prompt.sh",
+        "description": "사용자 프롬프트에 따라 관련 스킬 자동 활성화 안내",
+        "enabled": true
+      }
+    ],
+    "PostToolUse": [
+      {
+        "name": "post-tool-use-tracker",
+        "command": "bash .claude/hooks/post-tool-use-tracker.sh",
+        "description": "도구 사용 추적 및 변경 파일 로깅",
+        "enabled": true
+      }
+    ],
+    "Stop": [
+      {
+        "name": "build-check",
+        "command": "bash .claude/hooks/build-check.sh",
+        "description": "빌드 및 테스트 검증 (수동 활성화 권장)",
+        "enabled": false
+      }
+    ]
+  },
+  "skills": {
+    "autoActivate": true,
+    "rulesFile": ".claude/skills/skill-rules.json"
+  },
+  "agents": {
+    "directory": ".claude/agents"
+  },
+  "preferences": {
+    "language": "ko",
+    "codeStyle": {
+      "python": {
+        "version": "3.11+",
+        "typeHints": true,
+        "asyncAwait": true
+      }
+    },
+    "safetyChecks": {
+      "medicalAdLaw": {
+        "enforcement": "block",
+        "autoCheck": true
+      }
+    }
+  },
+  "logging": {
+    "directory": "./dev/active/logs",
+    "toolUsage": true,
+    "fileChanges": true
+  }
+}

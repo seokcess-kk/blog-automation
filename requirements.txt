@@ -1,0 +1,28 @@
+# blog-automation requirements
+
+# Core
+python-dotenv>=1.0.0
+
+# Crawler (Analyzer)
+scrapling>=0.3.0
+
+# Publisher (Browser Automation)
+playwright>=1.40.0
+pyperclip>=1.8.0
+
+# Image Processing
+Pillow>=10.0.0
+piexif>=1.1.0
+
+# AI APIs
+anthropic>=0.25.0
+google-genai>=1.0.0
+
+# Database
+supabase>=2.0.0
+
+# HTTP Client
+requests>=2.31.0
+
+# Slack Notifications
+slack-sdk>=3.20.0

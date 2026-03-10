@@ -1,0 +1,321 @@
+{
+  "name": "Blog Automation - Main Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Daily 09:00 Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/keywords",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "eq.pending"
+            },
+            {
+              "name": "schedule_date",
+              "value": "eq.{{ $now.format('yyyy-MM-dd') }}"
+            },
+            {
+              "name": "select",
+              "value": "*"
+            },
+            {
+              "name": "limit",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-keywords",
+      "name": "Fetch Pending Keywords",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-api-key",
+          "name": "Supabase API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-keywords",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-keywords",
+      "name": "Has Keywords?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "command": "python -m src.cli analyze --keyword \"{{ $json.keyword }}\" --save-to-db"
+      },
+      "id": "analyze-keyword",
+      "name": "Analyze Keyword",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\ntry {\n  return [{ json: JSON.parse(output) }];\n} catch (e) {\n  return [{ json: { success: false, error: output } }];\n}"
+      },
+      "id": "parse-analyze-result",
+      "name": "Parse Analyze Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "analyze-success",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-analyze-success",
+      "name": "Analyze Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "command": "python -m src.cli generate --keyword-id \"{{ $json.pattern_id || $json.keyword_id }}\""
+      },
+      "id": "generate-content",
+      "name": "Generate Content",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1450, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\ntry {\n  return [{ json: JSON.parse(output) }];\n} catch (e) {\n  return [{ json: { success: false, error: output } }];\n}"
+      },
+      "id": "parse-generate-result",
+      "name": "Parse Generate Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 100]
+    },
+    {
+      "parameters": {
+        "channel": "#blog-automation",
+        "text": ":white_check_mark: *Content Generated*\n\n*Keyword:* {{ $('Fetch Pending Keywords').item.json.keyword }}\n*Title:* {{ $json.title }}\n*Draft ID:* {{ $json.draft_id }}\n*Scheduled:* {{ $json.publish_at }}",
+        "otherOptions": {}
+      },
+      "id": "notify-success",
+      "name": "Notify Success",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1850, 100],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-webhook",
+          "name": "Slack Webhook"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#blog-automation",
+        "text": ":x: *Pipeline Failed*\n\n*Keyword:* {{ $('Fetch Pending Keywords').item.json.keyword }}\n*Error:* {{ $json.error }}",
+        "otherOptions": {}
+      },
+      "id": "notify-error",
+      "name": "Notify Error",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1450, 300],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-webhook",
+          "name": "Slack Webhook"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "no-keywords",
+      "name": "No Keywords Today",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 400]
+    }
+  ],
+  "connections": {
+    "Daily 09:00 Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Pending Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Pending Keywords": {
+      "main": [
+        [
+          {
+            "node": "Has Keywords?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Keywords?": {
+      "main": [
+        [
+          {
+            "node": "Analyze Keyword",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Keywords Today",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Keyword": {
+      "main": [
+        [
+          {
+            "node": "Parse Analyze Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Analyze Result": {
+      "main": [
+        [
+          {
+            "node": "Analyze Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Success?": {
+      "main": [
+        [
+          {
+            "node": "Generate Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Content": {
+      "main": [
+        [
+          {
+            "node": "Parse Generate Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Generate Result": {
+      "main": [
+        [
+          {
+            "node": "Notify Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "blog-automation"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-03-10T00:00:00.000Z",
+  "versionId": "1"
+}
