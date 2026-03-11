@@ -92,6 +92,7 @@ GEMINI_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
 # 출력 디렉토리
 OUTPUT_DIR = PROJECT_ROOT / "output"
 IMAGES_DIR = OUTPUT_DIR / "images"
+HTML_DIR = OUTPUT_DIR / "html"
 SCREENSHOTS_DIR = OUTPUT_DIR / "screenshots"
 
 # 브라우저 설정

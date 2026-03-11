@@ -198,11 +198,13 @@ def analyze(keyword: str, top_n: int, save_to_db: bool):
 @cli.command()
 @click.option("--keyword-id", required=True, help="키워드 ID (UUID)")
 @click.option("--skip-images", is_flag=True, help="이미지 생성 스킵")
-def generate(keyword_id: str, skip_images: bool):
+@click.option("--output-html/--no-output-html", default=True, help="HTML 프리뷰 출력 (기본: True)")
+def generate(keyword_id: str, skip_images: bool, output_html: bool):
     """
     키워드ID로 패턴을 로드하여 원고를 생성합니다.
 
     패턴 데이터를 기반으로 블로그 콘텐츠와 이미지를 생성합니다.
+    생성 완료 후 HTML 프리뷰 파일을 자동 출력합니다.
     """
     try:
         from src.generator import generate_content
@@ -234,17 +236,19 @@ def generate(keyword_id: str, skip_images: bool):
         # 4. drafts 테이블에 저장
         # keyword_id는 patterns에서 가져오거나 None (외래키 제약)
         actual_keyword_id = pattern_data.get("keyword_id") if pattern_data else None
+        image_list = [
+            {"path": img.get("path"), "prompt": img.get("prompt"), "filename": img.get("filename")}
+            for img in content_result.get("images", [])
+        ]
         draft_data = {
             "keyword_id": actual_keyword_id,
             "pattern_id": pattern_data.get("id") if pattern_data else None,
+            "keyword": keyword,
             "title": content_result["title"],
             "body_html": content_result["body_html"],
             "meta_description": content_result.get("meta_description", ""),
             "tags": content_result.get("tags", []),
-            "images": [
-                {"path": img.get("path"), "alt": img.get("alt")}
-                for img in content_result.get("images", [])
-            ],
+            "images": image_list,
             "status": "ready",
             "publish_at": publish_at.isoformat() if publish_at else None,
             "created_at": datetime.now().isoformat(),
@@ -267,10 +271,73 @@ def generate(keyword_id: str, skip_images: bool):
         else:
             logger.warning("드래프트 DB 저장 실패")
 
+        # 5. HTML 프리뷰 출력
+        if output_html:
+            from src.exporter import export_to_html
+
+            html_path = export_to_html(
+                title=content_result["title"],
+                body_html=content_result["body_html"],
+                tags=content_result.get("tags", []),
+                images=image_list,
+                keyword=keyword,
+            )
+            result["html_path"] = str(html_path)
+            logger.info(f"HTML 프리뷰 생성: {html_path}")
+
         output_json(result)
 
     except Exception as e:
         logger.error(f"생성 오류: {e}")
+        output_error(str(e))
+
+
+@cli.command("export")
+@click.option("--draft-id", required=True, help="드래프트 ID (UUID)")
+def export_draft(draft_id: str):
+    """
+    기존 드래프트를 HTML 프리뷰로 내보냅니다.
+
+    DB에 저장된 드래프트 데이터를 로드하여 HTML 파일로 출력합니다.
+    재생성 없이 기존 데이터만 사용합니다.
+    """
+    try:
+        from src.exporter import export_to_html
+
+        logger.info(f"드래프트 내보내기: draft_id={draft_id}")
+
+        # DB에서 드래프트 로드
+        drafts = supabase_select("drafts", {"id": draft_id})
+
+        if not drafts:
+            output_error(f"드래프트를 찾을 수 없습니다: {draft_id}")
+
+        draft = drafts[0]
+
+        # 키워드: draft에 직접 저장된 값 우선, 없으면 patterns 테이블 조회
+        keyword = draft.get("keyword", "")
+        if not keyword and draft.get("pattern_id"):
+            patterns = supabase_select("patterns", {"id": draft["pattern_id"]})
+            if patterns:
+                keyword = patterns[0].get("keyword", "")
+
+        html_path = export_to_html(
+            title=draft["title"],
+            body_html=draft["body_html"],
+            tags=draft.get("tags", []),
+            images=draft.get("images", []),
+            keyword=keyword,
+        )
+
+        output_json({
+            "success": True,
+            "draft_id": draft_id,
+            "html_path": str(html_path),
+            "title": draft["title"],
+        })
+
+    except Exception as e:
+        logger.error(f"내보내기 오류: {e}")
         output_error(str(e))
 
 

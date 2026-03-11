@@ -299,44 +299,84 @@ def _extract_text(container) -> str:
 
 
 def _extract_images(container) -> list:
-    """컨테이너 내 이미지 요소를 추출합니다."""
+    """컨테이너 내 콘텐츠 이미지 요소를 추출합니다 (장식용 제외)."""
     images = []
+    seen_srcs: set[str] = set()
 
-    img_selectors = [
+    # 우선 셀렉터: 네이버 블로그 콘텐츠 이미지
+    priority_selectors = [
         "img.se-image-resource",  # SE 에디터
         "img[src*='blogfiles']",  # 네이버 블로그 이미지
         "img[src*='postfiles']",
-        ".se_mediaImage img",
-        "img",  # 범용
     ]
 
-    for selector in img_selectors:
+    for selector in priority_selectors:
         try:
             elements = container.css(selector)
             for elem in elements:
                 src = elem.attrib.get("src", "") or elem.attrib.get("data-src", "")
-                # 아이콘/이모티콘 제외
-                if src and not _is_icon_image(src):
-                    if elem not in images:
-                        images.append(elem)
+                if src and src not in seen_srcs and not _is_icon_image(src) and not _is_small_image(elem):
+                    seen_srcs.add(src)
+                    images.append(elem)
         except Exception:
             continue
+
+    # fallback: 우선 셀렉터로 이미지를 못 찾은 경우에만 generic img 사용
+    if not images:
+        try:
+            elements = container.css("img")
+            for elem in elements:
+                src = elem.attrib.get("src", "") or elem.attrib.get("data-src", "")
+                if src and src not in seen_srcs and not _is_icon_image(src) and not _is_small_image(elem):
+                    seen_srcs.add(src)
+                    images.append(elem)
+        except Exception:
+            pass
 
     return images
 
 
 def _is_icon_image(src: str) -> bool:
-    """아이콘/이모티콘 이미지인지 확인합니다."""
+    """아이콘/이모티콘/장식용 이미지인지 확인합니다."""
     icon_patterns = [
-        "icon",
-        "emoji",
-        "emoticon",
-        "btn_",
-        "bullet",
-        "static.naver",
+        "icon", "emoji", "emoticon", "btn_", "bullet", "static.naver",
+        "/separator", "/divider", "/spacer", "/blank", "transparent",
+        "_logo", "/logo", "/badge", "sticker", "deco", "bg_", "/background",
+        "_arrow", "/arrow", "_check.", "/dot.", "_dot_", "widget", "/banner",
+        "profile_", "thumb_", "s.pstatic.net",
     ]
     src_lower = src.lower()
     return any(pattern in src_lower for pattern in icon_patterns)
+
+
+def _is_small_image(elem) -> bool:
+    """크기가 작은 장식용 이미지인지 확인합니다 (width와 height 모두 100px 미만)."""
+    threshold = 100
+
+    def _parse_dimension(attr_name: str) -> int | None:
+        """속성 또는 inline style에서 크기를 파싱합니다."""
+        val = elem.attrib.get(attr_name, "")
+        if val:
+            try:
+                return int(val.replace("px", ""))
+            except (ValueError, TypeError):
+                pass
+        style = elem.attrib.get("style", "")
+        if style:
+            match = re.search(rf'{attr_name}\s*:\s*(\d+)\s*px', style)
+            if match:
+                return int(match.group(1))
+        return None
+
+    w = _parse_dimension("width")
+    h = _parse_dimension("height")
+
+    # 둘 다 파싱된 경우: 모두 작아야 장식용
+    if w is not None and h is not None:
+        return w < threshold and h < threshold
+    # 하나만 파싱된 경우: 다른 축 크기를 알 수 없으므로 필터하지 않음
+
+    return False
 
 
 def _calculate_image_positions(container, images: list) -> list[float]:

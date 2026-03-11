@@ -103,13 +103,19 @@ def generate_content(
         skip_violation_check=skip_violation_check,
     )
 
-    # Step 3: 이미지 생성
+    # Step 3: 이미지 생성 (최대 10개 제한)
+    MAX_IMAGES = 10
     images: list[GeneratedImage] = []
     if not skip_images and content.get("image_prompts"):
-        logger.info("Step 3: Generating images with Nano Banana Pro...")
+        image_prompts = content["image_prompts"][:MAX_IMAGES]
+        if len(content["image_prompts"]) > MAX_IMAGES:
+            logger.warning(
+                f"Image prompts truncated: {len(content['image_prompts'])} → {MAX_IMAGES}"
+            )
+        logger.info(f"Step 3: Generating {len(image_prompts)} images with Nano Banana Pro...")
         try:
             images = generate_images(
-                prompts=content["image_prompts"],
+                prompts=image_prompts,
                 keyword_id=keyword_id,
                 region_gps=region_gps,
             )

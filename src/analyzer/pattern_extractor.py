@@ -49,6 +49,9 @@ class ExtractedPattern:
     source_urls: list[str]
     """분석된 URL 목록"""
 
+    source_titles: list[str]
+    """분석된 블로그 제목 목록"""
+
 
 def extract_patterns(
     contents: list[ParsedContent],
@@ -105,6 +108,7 @@ def extract_patterns(
         image_position_pattern=image_position_pattern,
         source_count=len(contents),
         source_urls=[c.url for c in contents],
+        source_titles=[c.title for c in contents],
     )
 
     logger.info(
@@ -343,4 +347,5 @@ def pattern_to_dict(pattern: ExtractedPattern) -> dict[str, Any]:
         "image_position_pattern": pattern.image_position_pattern,
         "source_count": pattern.source_count,
         "source_urls": pattern.source_urls,
+        "source_titles": pattern.source_titles,
     }

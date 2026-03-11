@@ -32,6 +32,7 @@ class PatternData(TypedDict, total=False):
     keyword_placement: str | dict[str, Any]
     related_keywords: str | list[str]
     content_structure: str | dict[str, Any]
+    source_titles: list[str]
 
 
 def _load_template(filename: str) -> str:
@@ -114,12 +115,13 @@ def build_prompt(
 
     # 패턴 데이터 기본값
     avg_char_count = pattern_data.get("avg_char_count", 2000)
-    avg_image_count = pattern_data.get("avg_image_count", 3)
+    avg_image_count = min(pattern_data.get("avg_image_count", 3), 10)  # 최대 10개 제한
     avg_heading_count = pattern_data.get("avg_heading_count", 4)
     title_patterns = pattern_data.get("title_patterns", "분석된 패턴 없음")
     keyword_placement = pattern_data.get("keyword_placement", "제목, 첫 문단, 소제목에 키워드 배치")
     related_keywords = pattern_data.get("related_keywords", "분석된 연관 키워드 없음")
     content_structure = pattern_data.get("content_structure", "서론-본론-결론 구조")
+    source_titles = pattern_data.get("source_titles", [])
 
     # 변수 치환
     variables = {
@@ -133,6 +135,7 @@ def build_prompt(
         "{{keyword_placement}}": _format_dict(keyword_placement),
         "{{related_keywords}}": _format_list(related_keywords),
         "{{content_structure}}": _format_dict(content_structure),
+        "{{source_titles}}": _format_list(source_titles) if source_titles else "분석된 제목 없음",
     }
 
     user_prompt = pattern_template
