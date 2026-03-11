@@ -232,8 +232,10 @@ def generate(keyword_id: str, skip_images: bool):
         publish_at = generate_publish_time()
 
         # 4. drafts 테이블에 저장
+        # keyword_id는 patterns에서 가져오거나 None (외래키 제약)
+        actual_keyword_id = pattern_data.get("keyword_id") if pattern_data else None
         draft_data = {
-            "keyword_id": keyword_id,
+            "keyword_id": actual_keyword_id,
             "pattern_id": pattern_data.get("id") if pattern_data else None,
             "title": content_result["title"],
             "body_html": content_result["body_html"],
