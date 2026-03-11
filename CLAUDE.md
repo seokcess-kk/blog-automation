@@ -123,6 +123,40 @@ PUBLISH_MODES = {
 
 ---
 
+## 네이버 SE ONE 에디터 규칙 (enforcement: block)
+
+### DOM 직접 조작 금지
+
+네이버 SE ONE 에디터는 **렌더 DOM과 내부 데이터 모델이 분리**되어 있다.
+`querySelector`/`removeChild`/`style` 등으로 DOM을 수정해도 **발행 시 내부 모델 기준으로 HTML이 생성**되므로 변경사항이 무시된다.
+
+**서식 변경은 반드시 에디터 툴바 버튼 클릭 또는 키보드 단축키를 사용할 것.**
+
+### 검증된 셀렉터 (2026-03-11 기준)
+
+| 요소 | 셀렉터 | 활성 상태 |
+|------|--------|-----------|
+| 취소선 버튼 | `button[data-name="strikethrough"]` | `se-is-selected` 클래스 |
+| 굵게 버튼 | `button[data-name="bold"]` | `se-is-selected` 클래스 |
+| 제목 영역 | `.se-title-text span` | - |
+| 본문 영역 | `.se-component.se-text p` | 제목 영역(`.se-documentTitle`) 제외 필수 |
+| 발행 버튼 | `button[class*='publish']` | - |
+| 발행 확인 | `button.confirm_btn__WEaBq` | - |
+
+### 서식 문제 대응 패턴
+
+```python
+# 1. 본문 영역 클릭 (포커스)
+# 2. Ctrl+A 전체 선택
+# 3. 툴바 버튼 상태 확인 (se-is-selected)
+# 4. 활성 상태면 클릭하여 해제 → 에디터 내부 모델 업데이트
+# 5. 비활성 상태면 조작하지 않음 (실수 방지)
+```
+
+⚠️ `active`, `is-active`, `aria-pressed` 등은 이 에디터에서 사용하지 않음. 반드시 `se-is-selected`로 체크.
+
+---
+
 ## 봇 탐지 우회
 
 - user_data_dir 세션 유지
