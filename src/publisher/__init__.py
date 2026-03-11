@@ -73,7 +73,7 @@ def publish_draft(draft_id: str, blog_account: str = "A") -> dict:
             "published_at": str | None,
         }
     """
-    from config import BLOG_ACCOUNTS, SUPABASE_URL, SUPABASE_KEY
+    from src.config import BLOG_ACCOUNTS, SUPABASE_URL, SUPABASE_KEY
 
     result = {
         "success": False,

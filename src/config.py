@@ -24,8 +24,24 @@ SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
 # 블로그 계정
 BLOG_A_USERNAME: str = os.getenv("BLOG_A_USERNAME", "")
 BLOG_A_PASSWORD: str = os.getenv("BLOG_A_PASSWORD", "")
+BLOG_A_BLOG_ID: str = os.getenv("BLOG_A_BLOG_ID", "")
 BLOG_B_USERNAME: str = os.getenv("BLOG_B_USERNAME", "")
 BLOG_B_PASSWORD: str = os.getenv("BLOG_B_PASSWORD", "")
+BLOG_B_BLOG_ID: str = os.getenv("BLOG_B_BLOG_ID", "")
+
+# 블로그 계정 딕셔너리
+BLOG_ACCOUNTS: dict[str, dict[str, str]] = {
+    "A": {
+        "username": BLOG_A_USERNAME,
+        "password": BLOG_A_PASSWORD,
+        "blog_id": BLOG_A_BLOG_ID,
+    },
+    "B": {
+        "username": BLOG_B_USERNAME,
+        "password": BLOG_B_PASSWORD,
+        "blog_id": BLOG_B_BLOG_ID,
+    },
+}
 
 # Slack
 SLACK_WEBHOOK_URL: str = os.getenv("SLACK_WEBHOOK_URL", "")

@@ -34,8 +34,9 @@ python -m src.cli check-schedule
 pytest tests/ -v                         # 전체 테스트
 pytest tests/test_analyzer.py -v         # 단일 파일
 pytest tests/ -k "test_함수명"            # 단일 테스트
-pytest tests/ -m "not live"              # 실제 API 호출 제외
-pytest tests/ -m "live"                  # 실제 API 호출만 (환경변수 필요)
+pytest tests/ -m "not live"              # 실제 API 호출 제외 (CI용)
+pytest tests/ -m "live"                  # 실제 API 호출만 (환경변수 필수)
+# @pytest.mark.live: 네이버 API, Claude API, Supabase 등 외부 서비스 호출 테스트
 
 # Docker
 docker-compose up -d
@@ -60,6 +61,16 @@ docker-compose up -d
 - `src/generator/`: 프롬프트 빌드 → Claude API → 이미지 생성
 - `src/publisher/`: 인증 → 에디터 조작 → 스케줄링
 - `src/utils/`: EXIF 삽입, 의료광고법 검증, 네이버 API
+
+### 데이터 흐름
+
+```
+keywords (pending) → analyzer → patterns (DB 저장)
+                            ↓
+patterns + keyword → generator → drafts (draft)
+                            ↓
+drafts (draft) → publisher → drafts (published) + publish_logs
+```
 
 ### 이미지 생성 (Nano Banana Pro)
 
@@ -124,7 +135,7 @@ PUBLISH_MODES = {
 
 ## API 에러 처리
 
-- **Nano Banana Pro 429**: exponential backoff (10s, 30s, 60s)
+- **Nano Banana Pro (429)**: exponential backoff (10s, 30s, 60s)
 - **Safety filter**: 프롬프트 수정 후 재시도 (max 3회)
 - **발행 실패**: 자동 재스케줄 (max 3회)
 
@@ -156,8 +167,18 @@ HEADLESS=false                  # 봇 탐지 우회를 위해 기본 false
 |--------|------|
 | keywords | 키워드 관리 (status: pending/analyzing/done) |
 | patterns | 상위노출 패턴 데이터 |
-| drafts | 생성된 원고 (status: ready/published/failed) |
+| drafts | 생성된 원고 (status: draft/published/failed) |
 | publish_logs | 발행 이력 로깅 |
+
+---
+
+## n8n 워크플로우
+
+| 워크플로우 | 스케줄 | 기능 |
+|------------|--------|------|
+| Main Pipeline | 매일 09:00 | 키워드 조회 → 패턴 분석 → 원고 생성 |
+| Publish Scheduler | 10분 간격 | 발행 조건 확인 → 자동 발행 (max 재시도 3회) |
+| Daily Report | 매일 21:00 | 발행 결과 집계 → Slack 리포트 |
 
 ---
 
