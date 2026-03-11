@@ -8,8 +8,13 @@ import os
 from pathlib import Path
 from typing import TypedDict
 
+from dotenv import load_dotenv
+
 # 프로젝트 루트 디렉토리
 PROJECT_ROOT = Path(__file__).parent.parent
+
+# .env 파일 로드
+load_dotenv(PROJECT_ROOT / ".env")
 
 # API Keys
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
