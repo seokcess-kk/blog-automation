@@ -19,6 +19,13 @@ load_dotenv(PROJECT_ROOT / ".env")
 # API Keys
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 GOOGLE_AI_API_KEY: str = os.getenv("GOOGLE_AI_API_KEY", "")
+
+# 네이버 검색광고 API (키워드 도구)
+NAVER_AD_CUSTOMER_ID: str = os.getenv("NAVER_AD_CUSTOMER_ID", "")
+NAVER_AD_ACCESS_LICENSE: str = os.getenv("NAVER_AD_ACCESS_LICENSE", "")
+NAVER_AD_SECRET_KEY: str = os.getenv("NAVER_AD_SECRET_KEY", "")
+
+# 네이버 오픈 API (블로그 검색) - 별도 발급 필요
 NAVER_CLIENT_ID: str = os.getenv("NAVER_CLIENT_ID", "")
 NAVER_CLIENT_SECRET: str = os.getenv("NAVER_CLIENT_SECRET", "")
 
