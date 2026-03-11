@@ -300,152 +300,90 @@ class BlogEditor:
         # 이미지 플레이스홀더 처리 및 이미지 삽입
         self._enter_body_with_structure(body_html, images)
 
-    def _reset_text_formatting(self) -> None:
+    def _strip_strikethrough_via_toolbar(self) -> None:
         """
-        텍스트 서식을 초기화합니다. 특히 취소선 서식을 해제합니다.
+        에디터 툴바의 취소선 버튼을 사용하여 취소선을 제거합니다.
 
-        네이버 에디터에서 이전 글의 서식이 남아있거나,
-        알 수 없는 이유로 취소선이 활성화되는 문제를 해결합니다.
+        DOM 직접 조작은 에디터 내부 모델에 반영되지 않으므로,
+        텍스트를 전체 선택한 후 툴바 버튼으로 취소선을 토글하여
+        에디터 내부 모델까지 업데이트합니다.
         """
-        logger.info("텍스트 서식 초기화 시작")
+        logger.info("취소선 제거 시작 (툴바 방식)")
 
         try:
-            # 취소선 버튼 셀렉터 (네이버 스마트에디터)
-            strikethrough_selectors = [
-                "button[data-name='strikethrough']",
-                "button[data-command-name='strikethrough']",
-                "button.se-toolbar-button-strikethrough",
-                "[class*='strikethrough']",
-                "button[title*='취소선']",
-                "button[aria-label*='취소선']",
+            # 1. 본문 영역 클릭 (포커스)
+            body_selectors = [
+                ".se-component.se-text p",
+                ".se-text-paragraph",
+                ".se-component-content",
             ]
-
-            # 1. 취소선 버튼 상태 확인 및 비활성화
-            for selector in strikethrough_selectors:
+            for selector in body_selectors:
                 try:
-                    btn = self._get_locator(selector)
-                    if btn.count() > 0:
-                        # 버튼의 활성화 상태 확인 (aria-pressed 또는 클래스)
-                        is_active = self.page.evaluate(f'''() => {{
-                            const btn = document.querySelector("{selector}");
-                            if (!btn) return false;
-
-                            // aria-pressed 속성 확인
-                            if (btn.getAttribute('aria-pressed') === 'true') return true;
-
-                            // 활성화 클래스 확인
-                            if (btn.classList.contains('active') ||
-                                btn.classList.contains('se-toolbar-button-active') ||
-                                btn.classList.contains('is-active') ||
-                                btn.classList.contains('selected')) return true;
-
-                            // 배경색으로 확인
-                            const style = window.getComputedStyle(btn);
-                            const bg = style.backgroundColor;
-                            if (bg && bg !== 'transparent' &&
-                                bg !== 'rgba(0, 0, 0, 0)' &&
-                                bg !== 'rgb(255, 255, 255)') {{
-                                // 배경색이 있으면 활성화 상태일 수 있음
-                                return true;
-                            }}
-
-                            return false;
-                        }}''')
-
-                        if is_active:
-                            btn.first.click()
-                            human_delay(100, 200)
-                            logger.info(f"취소선 버튼 비활성화: {selector}")
-                            break
-                except Exception as e:
-                    logger.debug(f"취소선 버튼 확인 실패 ({selector}): {e}")
+                    elem = self._get_locator(selector).first
+                    if elem.count() > 0:
+                        elem.click()
+                        human_delay(300, 500)
+                        break
+                except Exception:
                     continue
 
-            # 2. 테스트 입력으로 취소선 상태 재확인
-            self.page.keyboard.type("a")
-            human_delay(50, 100)
+            # 2. 전체 선택 (Ctrl+A)
+            self.page.keyboard.press("Control+a")
+            human_delay(500, 800)
 
-            has_strikethrough = self.page.evaluate('''() => {
-                // 방금 입력된 텍스트 요소 찾기
-                const selection = window.getSelection();
-                if (selection.rangeCount > 0) {
-                    let node = selection.anchorNode;
-                    // 텍스트 노드인 경우 부모 요소 확인
-                    if (node.nodeType === Node.TEXT_NODE) {
-                        node = node.parentElement;
-                    }
+            # 3. 취소선 버튼이 활성 상태(se-is-selected)일 때만 클릭하여 해제
+            result = self.page.evaluate('''() => {
+                // 네이버 SE ONE: data-name="strikethrough" 버튼 찾기
+                const btn = document.querySelector('button[data-name="strikethrough"]') ||
+                            document.querySelector('button[data-command-name="strikeThrough"]');
 
-                    while (node && node.tagName !== 'BODY') {
-                        const style = window.getComputedStyle(node);
-                        const decoration = style.textDecoration || style.textDecorationLine || '';
-                        if (decoration.includes('line-through')) {
-                            return true;
+                if (!btn) {
+                    // 폴백: 클래스명으로 검색
+                    const allBtns = document.querySelectorAll('.se-toolbar button');
+                    for (const b of allBtns) {
+                        if (b.className.includes('strikethrough') || b.className.includes('strike')) {
+                            const isActive = b.classList.contains('se-is-selected') ||
+                                           b.classList.contains('active') ||
+                                           b.classList.contains('is-active');
+                            if (isActive) {
+                                b.click();
+                                return {found: true, wasActive: true, clicked: true};
+                            }
+                            return {found: true, wasActive: false, clicked: false};
                         }
-                        // strike 또는 s 태그 확인
-                        if (node.tagName === 'STRIKE' || node.tagName === 'S' || node.tagName === 'DEL') {
-                            return true;
-                        }
-                        node = node.parentElement;
                     }
+                    return {found: false, wasActive: false, clicked: false};
                 }
-                return false;
+
+                const isActive = btn.classList.contains('se-is-selected') ||
+                               btn.classList.contains('active') ||
+                               btn.classList.contains('is-active');
+
+                if (isActive) {
+                    btn.click();
+                    return {found: true, wasActive: true, clicked: true};
+                }
+
+                return {found: true, wasActive: false, clicked: false};
             }''')
 
-            # 입력한 문자 삭제
-            self.page.keyboard.press("Backspace")
-            human_delay(50, 100)
+            if result.get("clicked"):
+                human_delay(300, 500)
+                logger.info("취소선 버튼 해제 완료 (se-is-selected → 비활성)")
+            elif result.get("found") and not result.get("wasActive"):
+                logger.info("취소선 버튼 비활성 상태 - 조작 불필요")
+            elif not result.get("found"):
+                logger.warning("취소선 버튼을 찾을 수 없음")
+                self._take_screenshot("strikethrough_btn_not_found")
 
-            if has_strikethrough:
-                logger.warning("취소선이 여전히 활성화됨 - 강제 해제 시도")
+            # 5. 선택 해제
+            self.page.keyboard.press("End")
+            human_delay(200, 300)
 
-                # 모든 취소선 버튼 클릭 시도
-                for selector in strikethrough_selectors:
-                    try:
-                        btn = self._get_locator(selector)
-                        if btn.count() > 0:
-                            btn.first.click()
-                            human_delay(100, 200)
-                            logger.info(f"취소선 강제 클릭: {selector}")
-
-                            # 다시 테스트
-                            self.page.keyboard.type("b")
-                            human_delay(50, 100)
-
-                            still_has_strike = self.page.evaluate('''() => {
-                                const selection = window.getSelection();
-                                if (selection.rangeCount > 0) {
-                                    let node = selection.anchorNode;
-                                    if (node.nodeType === Node.TEXT_NODE) {
-                                        node = node.parentElement;
-                                    }
-                                    while (node && node.tagName !== 'BODY') {
-                                        const style = window.getComputedStyle(node);
-                                        const decoration = style.textDecoration || style.textDecorationLine || '';
-                                        if (decoration.includes('line-through')) {
-                                            return true;
-                                        }
-                                        if (node.tagName === 'STRIKE' || node.tagName === 'S' || node.tagName === 'DEL') {
-                                            return true;
-                                        }
-                                        node = node.parentElement;
-                                    }
-                                }
-                                return false;
-                            }''')
-
-                            self.page.keyboard.press("Backspace")
-                            human_delay(50, 100)
-
-                            if not still_has_strike:
-                                logger.info("취소선 해제 성공")
-                                break
-                    except Exception:
-                        continue
-
-            logger.info("텍스트 서식 초기화 완료")
+            logger.info("취소선 제거 완료")
 
         except Exception as e:
-            logger.warning(f"텍스트 서식 초기화 실패: {e}")
+            logger.warning(f"취소선 제거 실패: {e}")
 
     def _enter_body_with_structure(self, body_html: str, images: List[str]) -> None:
         """
@@ -456,9 +394,6 @@ class BlogEditor:
         from bs4 import BeautifulSoup
 
         logger.info("구조화된 본문 입력 시작")
-
-        # 서식 초기화 - 취소선 강제 해제
-        self._reset_text_formatting()
 
         # HTML 파싱
         soup = BeautifulSoup(body_html, 'html.parser')
@@ -940,7 +875,10 @@ class BlogEditor:
             # 5. 태그 입력
             self._enter_tags(tags)
 
-            # 6. 발행 또는 임시저장
+            # 6. 취소선 제거 (툴바 버튼으로 에디터 내부 모델 업데이트)
+            self._strip_strikethrough_via_toolbar()
+
+            # 7. 발행 또는 임시저장
             if publish:
                 post_url = self._click_publish()
                 result["url"] = post_url

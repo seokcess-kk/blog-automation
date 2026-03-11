@@ -82,8 +82,9 @@ def test_publish(blog_account: str = "A"):
 
     finally:
         if authenticator:
-            # 브라우저 유지 (디버깅용)
-            input("\n브라우저를 확인하세요. Enter를 누르면 종료합니다...")
+            # --wait 플래그가 있으면 브라우저 유지 (디버깅용)
+            if "--wait" in sys.argv:
+                input("\n브라우저를 확인하세요. Enter를 누르면 종료합니다...")
             authenticator.close()
 
 
