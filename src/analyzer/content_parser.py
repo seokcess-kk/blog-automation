@@ -9,8 +9,40 @@ import logging
 import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
+from urllib.parse import urlparse, parse_qs
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_to_postview_url(url: str) -> str:
+    """
+    네이버 블로그 URL을 PostView.naver 형식으로 변환합니다.
+
+    iframe 내부 콘텐츠에 직접 접근하기 위해 필요합니다.
+
+    Examples:
+        https://blog.naver.com/username/123456789
+        -> https://blog.naver.com/PostView.naver?blogId=username&logNo=123456789
+    """
+    parsed = urlparse(url)
+
+    # 이미 PostView.naver 형식인 경우
+    if "PostView.naver" in url or "PostView.nhn" in url:
+        return url
+
+    # blog.naver.com/username/postId 형식 처리
+    path_parts = parsed.path.strip("/").split("/")
+
+    if len(path_parts) >= 2:
+        blog_id = path_parts[0]
+        log_no = path_parts[1]
+
+        # 숫자인지 확인 (postId)
+        if log_no.isdigit():
+            return f"https://blog.naver.com/PostView.naver?blogId={blog_id}&logNo={log_no}"
+
+    # 변환 불가능한 경우 원본 반환
+    return url
 
 
 @dataclass
@@ -80,7 +112,12 @@ def parse_blog_content(
         ... )
         >>> print(content.char_count, content.image_count)
     """
-    logger.info(f"콘텐츠 파싱 시작: {url}")
+    # URL을 PostView.naver 형식으로 변환 (iframe 우회)
+    converted_url = _convert_to_postview_url(url)
+    if converted_url != url:
+        logger.debug(f"URL 변환: {url} -> {converted_url}")
+
+    logger.info(f"콘텐츠 파싱 시작: {converted_url}")
 
     try:
         from scrapling import StealthyFetcher
@@ -89,13 +126,9 @@ def parse_blog_content(
         return None
 
     try:
-        fetcher = StealthyFetcher(
-            headless=True,
-            network_idle=True,
-            auto_save=True,
-        )
+        fetcher = StealthyFetcher()
 
-        page = fetcher.fetch(url, timeout=timeout * 1000)
+        page = fetcher.fetch(converted_url, timeout=timeout * 1000)
 
         if page is None or page.status != 200:
             logger.warning(f"페이지 로드 실패: {url}, status={getattr(page, 'status', 'None')}")
@@ -248,9 +281,16 @@ def _extract_title(page) -> str:
 def _extract_text(container) -> str:
     """컨테이너에서 텍스트를 추출합니다."""
     try:
-        # 모든 텍스트 노드 추출
-        text = container.text_content() or ""
-        # 연속 공백 정리
+        # scrapling의 get_all_text() 메서드 사용
+        if hasattr(container, 'get_all_text'):
+            text = container.get_all_text() or ""
+        elif hasattr(container, 'text_content'):
+            text = container.text_content() or ""
+        else:
+            text = container.text or ""
+
+        # Zero-width 문자 및 연속 공백 정리
+        text = text.replace('\u200b', '')  # Zero-width space 제거
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
     except Exception as e:
