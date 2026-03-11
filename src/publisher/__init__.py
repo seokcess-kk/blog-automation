@@ -116,6 +116,7 @@ def publish_draft(draft_id: str, blog_account: str = "A") -> dict:
             username=account["username"],
             password=account["password"],
             blog_id=blog_id,
+            account=blog_account,  # 계정별 세션 사용
         )
 
         # 5. 블로그 에디터에서 글 작성 및 발행
@@ -178,7 +179,7 @@ def _fetch_draft(draft_id: str) -> Optional[dict]:
     Returns:
         드래프트 데이터 또는 None
     """
-    from config import SUPABASE_URL, SUPABASE_KEY
+    from src.config import SUPABASE_URL, SUPABASE_KEY
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.warning("Supabase 설정 없음. 테스트 데이터 반환")
@@ -252,7 +253,7 @@ def _update_draft_status(
         post_url: 발행된 글 URL
         error: 에러 메시지
     """
-    from config import SUPABASE_URL, SUPABASE_KEY
+    from src.config import SUPABASE_URL, SUPABASE_KEY
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.warning("Supabase 설정 없음. 상태 업데이트 스킵")
@@ -310,7 +311,7 @@ def _log_publish_result(
         status: 결과 상태
         error_detail: 에러 상세
     """
-    from config import SUPABASE_URL, SUPABASE_KEY
+    from src.config import SUPABASE_URL, SUPABASE_KEY
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.warning("Supabase 설정 없음. 로깅 스킵")

@@ -105,21 +105,54 @@ def manual_login(account: str, timeout_seconds: int = 120) -> bool:
             # 세션 저장을 위해 잠시 대기
             time.sleep(2)
 
-            # 네이버 메인으로 이동하여 세션 확인
-            page.goto("https://www.naver.com/")
-            time.sleep(2)
+            # 블로그 글쓰기 페이지로 이동하여 세션 확인 (중요!)
+            from src.config import BLOG_ACCOUNTS
+            blog_id = BLOG_ACCOUNTS.get(account, {}).get("blog_id", "")
 
-            # 로그인 상태 확인
-            try:
-                # 로그인 버튼이 없으면 로그인 상태
-                login_btn = page.locator("a.link_login")
-                if login_btn.count() == 0:
-                    print("세션 저장 완료!")
+            if blog_id:
+                write_url = f"https://blog.naver.com/PostWriteForm.naver?blogId={blog_id}"
+                print(f"\n블로그 글쓰기 페이지로 세션 확인 중...")
+                print(f"URL: {write_url}")
+                page.goto(write_url)
+                time.sleep(3)
+
+                current_url = page.url
+                print(f"현재 URL: {current_url}")
+
+                if "nidlogin" in current_url:
+                    print("\n[경고] 블로그 글쓰기 페이지에서 다시 로그인 필요!")
+                    print("브라우저에서 로그인을 완료해주세요...")
+
+                    # 추가 대기
+                    start_time2 = time.time()
+                    while time.time() - start_time2 < 60:
+                        if "nidlogin" not in page.url:
+                            print("블로그 로그인 완료!")
+                            break
+                        time.sleep(1)
+
+                    # 다시 확인
+                    if "nidlogin" in page.url:
+                        print("블로그 세션 저장 실패")
+                        logged_in = False
+                    else:
+                        print("블로그 세션 저장 완료!")
                 else:
-                    print("경고: 로그인 상태가 유지되지 않았습니다.")
-                    logged_in = False
-            except Exception:
-                pass
+                    print("블로그 세션 유효!")
+            else:
+                # 네이버 메인으로 이동하여 세션 확인
+                page.goto("https://www.naver.com/")
+                time.sleep(2)
+
+                try:
+                    login_btn = page.locator("a.link_login")
+                    if login_btn.count() == 0:
+                        print("세션 저장 완료!")
+                    else:
+                        print("경고: 로그인 상태가 유지되지 않았습니다.")
+                        logged_in = False
+                except Exception:
+                    pass
         else:
             print(f"\n타임아웃: {timeout_seconds}초 내에 로그인이 완료되지 않았습니다.")
 

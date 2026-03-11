@@ -150,14 +150,19 @@ class NaverAuthenticator:
             else:
                 self.page = self.browser.new_page()
 
-            # 로그인 페이지 접속
-            self.page.goto(NAVER_LOGIN_URL, wait_until="domcontentloaded")
+            # 먼저 네이버 메인 페이지로 이동하여 세션 확인
+            self.page.goto("https://www.naver.com/", wait_until="domcontentloaded")
             human_delay(1000, 2000)
 
             # 이미 로그인된 상태인지 확인
             if self._check_login_success():
-                logger.info("이미 로그인된 상태입니다.")
+                logger.info("세션으로 이미 로그인된 상태입니다.")
                 return True
+
+            # 로그인 페이지 접속
+            logger.info("로그인 필요. 로그인 페이지로 이동...")
+            self.page.goto(NAVER_LOGIN_URL, wait_until="domcontentloaded")
+            human_delay(1000, 2000)
 
             # 랜덤 마우스 이동 (자연스러운 행동)
             random_mouse_movement(self.page)
