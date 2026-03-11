@@ -101,6 +101,7 @@ BROWSER_TIMEZONE: str = "Asia/Seoul"
 USER_DATA_DIR = PROJECT_ROOT / "browser_data"
 
 # 네이버 블로그 설정
+NAVER_LOGIN_URL: str = "https://nid.naver.com/nidlogin.login"
 NAVER_BLOG_WRITE_URL: str = "https://blog.naver.com/PostWriteForm.naver?blogId={blog_id}"
 STEP_TIMEOUT_SECONDS: int = 30
 

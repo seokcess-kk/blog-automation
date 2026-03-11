@@ -123,7 +123,7 @@ def random_mouse_movement(page: "Page") -> None:
     logger.debug(f"마우스 이동: ({current_x}, {current_y}) → ({target_x}, {target_y})")
 
 
-def setup_stealth_browser(playwright: "Playwright") -> "Browser":
+def setup_stealth_browser(playwright: "Playwright", account: str = None) -> "Browser":
     """
     스텔스 브라우저를 설정합니다.
 
@@ -132,13 +132,16 @@ def setup_stealth_browser(playwright: "Playwright") -> "Browser":
     - 핑거프린트 랜덤화
     - WebGL/Canvas 노이즈
     - 실제 User-Agent 설정
+    - 계정별 세션 분리
 
     Args:
         playwright: Playwright 인스턴스
+        account: 계정 식별자 (A, B 등). None이면 기본 디렉토리 사용
 
     Returns:
         설정된 Browser 객체
     """
+    from pathlib import Path
     from src.config import BROWSER_VIEWPORT, BROWSER_LOCALE, BROWSER_TIMEZONE, USER_DATA_DIR, HEADLESS
 
     # 실제 크롬 User-Agent 목록
@@ -162,8 +165,12 @@ def setup_stealth_browser(playwright: "Playwright") -> "Browser":
         "--disable-features=IsolateOrigins,site-per-process",
     ]
 
-    # user_data_dir 경로 설정 (세션 유지)
-    user_data_path = str(USER_DATA_DIR)
+    # user_data_dir 경로 설정 (계정별 세션 분리)
+    if account:
+        user_data_path = str(Path(USER_DATA_DIR) / f"account_{account}")
+        Path(user_data_path).mkdir(parents=True, exist_ok=True)
+    else:
+        user_data_path = str(USER_DATA_DIR)
 
     browser = playwright.chromium.launch_persistent_context(
         user_data_dir=user_data_path,

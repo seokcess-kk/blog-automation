@@ -28,16 +28,18 @@ logger = logging.getLogger(__name__)
 class NaverAuthenticator:
     """네이버 인증 처리 클래스"""
 
-    def __init__(self, username: str, password: str, blog_id: str):
+    def __init__(self, username: str, password: str, blog_id: str, account: str = None):
         """
         Args:
             username: 네이버 ID
             password: 네이버 비밀번호
             blog_id: 블로그 ID
+            account: 계정 식별자 (A, B 등). 세션 분리에 사용
         """
         self.username = username
         self.password = password
         self.blog_id = blog_id
+        self.account = account
         self.browser: Optional["BrowserContext"] = None
         self.page: Optional["Page"] = None
         self._playwright = None
@@ -104,7 +106,7 @@ class NaverAuthenticator:
         Args:
             message: 알림 메시지
         """
-        from config import SLACK_WEBHOOK_URL
+        from src.config import SLACK_WEBHOOK_URL
 
         if not SLACK_WEBHOOK_URL:
             logger.warning("Slack Webhook URL이 설정되지 않았습니다.")
@@ -134,13 +136,13 @@ class NaverAuthenticator:
         Raises:
             Exception: 로그인 실패 시
         """
-        from config import NAVER_LOGIN_URL, SCREENSHOTS_DIR, STEP_TIMEOUT_SECONDS
+        from src.config import NAVER_LOGIN_URL, SCREENSHOTS_DIR, STEP_TIMEOUT_SECONDS
 
         logger.info(f"네이버 로그인 시작: {self.username}")
 
         try:
             self._playwright = sync_playwright().start()
-            self.browser = setup_stealth_browser(self._playwright)
+            self.browser = setup_stealth_browser(self._playwright, account=self.account)
 
             # 기존 페이지 사용 또는 새 페이지 생성
             if self.browser.pages:
@@ -258,7 +260,12 @@ class NaverAuthenticator:
             logger.warning(f"브라우저 정리 중 오류: {e}")
 
 
-def login_to_naver(username: str, password: str, blog_id: str) -> NaverAuthenticator:
+def login_to_naver(
+    username: str,
+    password: str,
+    blog_id: str,
+    account: str = None
+) -> NaverAuthenticator:
     """
     네이버에 로그인하고 인증 객체를 반환합니다.
 
@@ -266,10 +273,11 @@ def login_to_naver(username: str, password: str, blog_id: str) -> NaverAuthentic
         username: 네이버 ID
         password: 네이버 비밀번호
         blog_id: 블로그 ID
+        account: 계정 식별자 (A, B 등). 세션 분리에 사용
 
     Returns:
         NaverAuthenticator 객체
     """
-    authenticator = NaverAuthenticator(username, password, blog_id)
+    authenticator = NaverAuthenticator(username, password, blog_id, account=account)
     authenticator.login()
     return authenticator
