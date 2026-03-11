@@ -1,0 +1,39 @@
+{
+  "workflows": {
+    "main_pipeline": {
+      "name": "Main Pipeline - 키워드 분석 및 원고 생성",
+      "schedule": "매일 09:00 (KST)",
+      "cron": "0 0 * * *",
+      "steps": [
+        {
+          "name": "1. 키워드 분석",
+          "type": "Execute Command",
+          "command": "docker exec blog-automation-python-runner-1 python -m src.cli analyze --keyword \"{{$json.keyword}}\" --top-n 5 --save-to-db"
+        },
+        {
+          "name": "2. 원고 생성",
+          "type": "Execute Command",
+          "command": "docker exec blog-automation-python-runner-1 python -m src.cli generate --keyword-id {{$json.pattern_id}}"
+        }
+      ]
+    },
+    "publish_scheduler": {
+      "name": "Publish Scheduler - 자동 발행",
+      "schedule": "10분 간격",
+      "cron": "*/10 * * * *",
+      "steps": [
+        {
+          "name": "1. 발행 조건 확인 및 발행",
+          "type": "Execute Command",
+          "command": "docker exec blog-automation-python-runner-1 python -m src.cli check-schedule"
+        }
+      ]
+    },
+    "daily_report": {
+      "name": "Daily Report - 일일 리포트",
+      "schedule": "매일 21:00 (KST)",
+      "cron": "0 12 * * *",
+      "note": "Supabase에서 당일 발행 결과 집계 후 Slack 전송 (n8n HTTP Request + Slack 노드로 구현)"
+    }
+  }
+}
