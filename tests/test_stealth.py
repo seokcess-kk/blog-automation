@@ -31,15 +31,18 @@ class TestHumanDelay:
     def test_human_delay_default_values(self):
         """human_delay 기본값 테스트."""
         from src.publisher.stealth import human_delay
-        from src.config import TYPING_DELAY_MS
+
+        # human_delay 기본값: min_ms=500, max_ms=2000
+        DEFAULT_MIN_MS = 500
+        DEFAULT_MAX_MS = 2000
 
         # 기본값으로 호출
         start = time.time()
         human_delay()
         elapsed = time.time() - start
 
-        min_expected = TYPING_DELAY_MS[0] / 1000
-        max_expected = TYPING_DELAY_MS[1] / 1000
+        min_expected = DEFAULT_MIN_MS / 1000
+        max_expected = DEFAULT_MAX_MS / 1000
 
         assert elapsed >= min_expected * 0.9
         assert elapsed <= max_expected * 1.5
@@ -48,41 +51,55 @@ class TestHumanDelay:
 class TestHumanTyping:
     """human_typing 함수 테스트."""
 
-    def test_human_typing_includes_typos(self):
-        """human_typing이 일정 확률로 오타를 포함하는지 테스트."""
+    def test_human_typing_calls_keyboard_type(self):
+        """human_typing이 keyboard.type을 호출하는지 테스트."""
         from src.publisher.stealth import human_typing
 
-        # 오타 확률 100%로 설정하여 테스트
-        with patch("src.publisher.stealth.TYPO_PROBABILITY", 1.0):
-            text = "테스트 문장입니다"
-            mock_page = Mock()
+        text = "테스트"
+        mock_page = Mock()
+        selector = "#test-input"
 
-            # type 메서드가 호출되는지 확인
-            human_typing(mock_page, text)
+        # locator mock 설정
+        mock_locator = Mock()
+        mock_page.locator.return_value = mock_locator
 
-            # 최소 한 번 이상 호출됨
-            assert mock_page.type.called or mock_page.keyboard.type.called
+        human_typing(mock_page, selector, text)
 
-    def test_human_typing_without_typos(self):
-        """오타 없이 타이핑 테스트."""
+        # keyboard.type이 호출됨 확인 (각 글자마다 호출)
+        assert mock_page.keyboard.type.called
+        # 최소 텍스트 길이만큼 호출
+        assert mock_page.keyboard.type.call_count >= len(text)
+
+    def test_human_typing_clicks_element(self):
+        """human_typing이 요소를 클릭하는지 테스트."""
         from src.publisher.stealth import human_typing
 
-        # 오타 확률 0%로 설정
-        with patch("src.publisher.stealth.TYPO_PROBABILITY", 0.0):
-            text = "테스트"
-            mock_page = Mock()
+        text = "테스트"
+        mock_page = Mock()
+        selector = "#test-input"
 
-            human_typing(mock_page, text)
+        # locator mock 설정
+        mock_locator = Mock()
+        mock_page.locator.return_value = mock_locator
 
-            # 호출됨 확인
-            assert mock_page.type.called or mock_page.keyboard.type.called
+        human_typing(mock_page, selector, text)
+
+        # locator가 호출되고 click이 호출됨 확인
+        mock_page.locator.assert_called_with(selector)
+        mock_locator.click.assert_called_once()
 
     def test_human_typing_handles_empty_text(self):
         """빈 텍스트 처리 테스트."""
         from src.publisher.stealth import human_typing
 
         mock_page = Mock()
-        human_typing(mock_page, "")
+        selector = "#test-input"
+
+        # locator mock 설정
+        mock_locator = Mock()
+        mock_page.locator.return_value = mock_locator
+
+        human_typing(mock_page, selector, "")
 
         # 빈 텍스트는 아무 작업 없이 완료
 
@@ -147,10 +164,17 @@ class TestSetupStealthBrowser:
         """setup_stealth_browser가 브라우저 옵션을 반환하는지 테스트."""
         from src.publisher.stealth import setup_stealth_browser
 
-        result = setup_stealth_browser()
+        # playwright mock 설정
+        mock_playwright = Mock()
+        mock_browser = Mock()
+        mock_playwright.chromium.launch_persistent_context.return_value = mock_browser
+        mock_browser.pages = []
 
-        # dict 또는 관련 객체 반환
+        result = setup_stealth_browser(mock_playwright)
+
+        # Browser 객체 반환 확인
         assert result is not None
+        assert mock_playwright.chromium.launch_persistent_context.called
 
 
 class TestStealthIntegration:

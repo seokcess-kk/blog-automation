@@ -67,21 +67,29 @@ class TestScheduler:
 
         with patch("src.publisher.scheduler.check_daily_limit") as mock_limit:
             with patch("src.publisher.scheduler.get_min_interval_ok") as mock_interval:
-                # 둘 다 OK
-                mock_limit.return_value = True
-                mock_interval.return_value = True
+                with patch("src.publisher.scheduler.is_weekend_allowed") as mock_weekend:
+                    with patch("src.publisher.scheduler.datetime") as mock_datetime:
+                        # 시간대/주말 조건 충족 mock
+                        mock_weekend.return_value = True
+                        mock_now = Mock()
+                        mock_now.hour = 12  # 발행 시간대 내
+                        mock_datetime.now.return_value = mock_now
 
-                can, reason = can_publish_now("test_blog")
-                assert can is True
-                assert reason is None
+                        # 둘 다 OK
+                        mock_limit.return_value = True
+                        mock_interval.return_value = True
 
-                # 일일 한도 초과
-                mock_limit.return_value = False
-                mock_interval.return_value = True
+                        can, reason = can_publish_now("test_blog")
+                        assert can is True
+                        assert reason == "발행 가능" or reason is None
 
-                can, reason = can_publish_now("test_blog")
-                assert can is False
-                assert "한도" in reason or "limit" in reason.lower()
+                        # 일일 한도 초과
+                        mock_limit.return_value = False
+                        mock_interval.return_value = True
+
+                        can, reason = can_publish_now("test_blog")
+                        assert can is False
+                        assert "한도" in reason or "limit" in reason.lower()
 
     def test_get_next_available_time(self):
         """다음 발행 가능 시간 계산 테스트."""

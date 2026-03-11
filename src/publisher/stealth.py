@@ -45,7 +45,7 @@ def human_typing(page: "Page", selector: str, text: str) -> None:
         selector: 입력할 요소의 선택자
         text: 입력할 텍스트
     """
-    from config import TYPING_DELAY_MS, TYPO_PROBABILITY
+    from src.config import TYPING_DELAY_MS, TYPO_PROBABILITY
 
     element = page.locator(selector)
     element.click()
@@ -139,7 +139,7 @@ def setup_stealth_browser(playwright: "Playwright") -> "Browser":
     Returns:
         설정된 Browser 객체
     """
-    from config import BROWSER_VIEWPORT, BROWSER_LOCALE, BROWSER_TIMEZONE, USER_DATA_DIR
+    from src.config import BROWSER_VIEWPORT, BROWSER_LOCALE, BROWSER_TIMEZONE, USER_DATA_DIR, HEADLESS
 
     # 실제 크롬 User-Agent 목록
     user_agents = [
@@ -167,7 +167,7 @@ def setup_stealth_browser(playwright: "Playwright") -> "Browser":
 
     browser = playwright.chromium.launch_persistent_context(
         user_data_dir=user_data_path,
-        headless=True,
+        headless=HEADLESS,
         args=browser_args,
         viewport=BROWSER_VIEWPORT,
         locale=BROWSER_LOCALE,

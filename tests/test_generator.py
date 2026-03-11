@@ -134,7 +134,8 @@ class TestGenerateContentIntegration:
 
     def test_generate_content_returns_correct_structure(self):
         """generate_content 반환 구조 테스트."""
-        with patch("src.generator.content_generator._generate_content") as mock_gen:
+        # __init__.py에서 _generate_content로 바인딩되므로 해당 위치를 mock
+        with patch("src.generator._generate_content") as mock_gen:
             mock_gen.return_value = {
                 "title": "테스트 제목",
                 "meta_description": "테스트 설명",

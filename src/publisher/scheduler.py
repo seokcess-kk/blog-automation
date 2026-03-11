@@ -29,15 +29,15 @@ def generate_publish_time(
     Returns:
         발행 예정 datetime
     """
-    from config import PUBLISH_HOUR_RANGE
+    from src.config import PUBLISH_HOUR_RANGE
 
     if base_hour_range is None:
         base_hour_range = PUBLISH_HOUR_RANGE
 
     now = datetime.now()
 
-    # 시간 선택 (범위 내 랜덤)
-    hour = random.randint(base_hour_range[0], base_hour_range[1])
+    # 시간 선택 (범위 내 랜덤, 종료시 미포함)
+    hour = random.randint(base_hour_range[0], base_hour_range[1] - 1)
 
     # 분 선택 (정각/30분 회피)
     # 00-05, 25-35, 55-00 회피
@@ -84,7 +84,7 @@ def check_daily_limit(blog_id: str) -> bool:
     Returns:
         발행 가능 여부 (True: 가능, False: 한도 초과)
     """
-    from config import PUBLISH_MODES, PUBLISH_MODE
+    from src.config import PUBLISH_MODES, PUBLISH_MODE
 
     mode_config = PUBLISH_MODES.get(PUBLISH_MODE, PUBLISH_MODES["conservative"])
     daily_limit = mode_config["daily_limit"]
@@ -112,7 +112,7 @@ def get_min_interval_ok(blog_id: str) -> bool:
     Returns:
         발행 가능 여부 (True: 간격 충족, False: 간격 부족)
     """
-    from config import PUBLISH_MODES, PUBLISH_MODE
+    from src.config import PUBLISH_MODES, PUBLISH_MODE
 
     mode_config = PUBLISH_MODES.get(PUBLISH_MODE, PUBLISH_MODES["conservative"])
     min_interval_hours = mode_config["min_interval_hours"]
@@ -151,7 +151,7 @@ def is_weekend_allowed() -> bool:
     Returns:
         주말 발행 가능 여부
     """
-    from config import PUBLISH_MODES, PUBLISH_MODE
+    from src.config import PUBLISH_MODES, PUBLISH_MODE
 
     mode_config = PUBLISH_MODES.get(PUBLISH_MODE, PUBLISH_MODES["conservative"])
     weekend_allowed = mode_config["weekend"]
@@ -181,7 +181,7 @@ def can_publish_now(blog_id: str) -> Tuple[bool, str]:
         return False, "주말 발행 비허용 모드"
 
     # 2. 시간대 확인
-    from config import PUBLISH_HOUR_RANGE
+    from src.config import PUBLISH_HOUR_RANGE
 
     now = datetime.now()
     if not (PUBLISH_HOUR_RANGE[0] <= now.hour <= PUBLISH_HOUR_RANGE[1]):
@@ -208,7 +208,7 @@ def get_next_available_time(blog_id: str) -> datetime:
     Returns:
         다음 발행 가능 datetime
     """
-    from config import PUBLISH_MODES, PUBLISH_MODE, PUBLISH_HOUR_RANGE
+    from src.config import PUBLISH_MODES, PUBLISH_MODE, PUBLISH_HOUR_RANGE
 
     mode_config = PUBLISH_MODES.get(PUBLISH_MODE, PUBLISH_MODES["conservative"])
     min_interval_hours = mode_config["min_interval_hours"]
@@ -261,7 +261,7 @@ def _get_today_publish_count(blog_id: str) -> int:
     Returns:
         오늘 발행 건수
     """
-    from config import SUPABASE_URL, SUPABASE_KEY
+    from src.config import SUPABASE_URL, SUPABASE_KEY
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.warning("Supabase 설정 없음. 기본값 0 반환")
@@ -308,7 +308,7 @@ def _get_last_publish_time(blog_id: str) -> Optional[datetime]:
     Returns:
         마지막 발행 datetime 또는 None
     """
-    from config import SUPABASE_URL, SUPABASE_KEY
+    from src.config import SUPABASE_URL, SUPABASE_KEY
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         logger.warning("Supabase 설정 없음. None 반환")

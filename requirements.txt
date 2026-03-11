@@ -2,6 +2,7 @@
 
 # Core
 python-dotenv>=1.0.0
+click>=8.0.0
 
 # Crawler (Analyzer)
 scrapling>=0.3.0
@@ -26,3 +27,6 @@ requests>=2.31.0
 
 # Slack Notifications
 slack-sdk>=3.20.0
+
+# Testing
+pytest>=7.0.0

@@ -64,3 +64,17 @@ GEMINI_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
 # 출력 디렉토리
 OUTPUT_DIR = PROJECT_ROOT / "output"
 IMAGES_DIR = OUTPUT_DIR / "images"
+SCREENSHOTS_DIR = OUTPUT_DIR / "screenshots"
+
+# 브라우저 설정
+BROWSER_VIEWPORT: dict[str, int] = {"width": 1920, "height": 1080}
+BROWSER_LOCALE: str = "ko-KR"
+BROWSER_TIMEZONE: str = "Asia/Seoul"
+USER_DATA_DIR = PROJECT_ROOT / "browser_data"
+
+# 네이버 블로그 설정
+NAVER_BLOG_WRITE_URL: str = "https://blog.naver.com/PostWriteForm.naver?blogId={blog_id}"
+STEP_TIMEOUT_SECONDS: int = 30
+
+# headless 모드 (기본값: False - 봇 탐지 우회를 위해)
+HEADLESS: bool = os.getenv("HEADLESS", "false").lower() == "true"

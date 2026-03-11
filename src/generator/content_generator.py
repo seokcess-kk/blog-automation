@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # 재시도 설정
 MAX_PARSE_RETRIES = 2
 MAX_VIOLATION_RETRIES = 2
+MAX_TOTAL_RETRIES = 10  # 전체 루프 최대 반복 횟수
 RATE_LIMIT_BACKOFF = [5, 10, 30, 60]  # 초 단위
 
 
@@ -176,8 +177,10 @@ def generate_content(
     client = _create_client()
     current_prompt = prompt
     violation_retries = 0
+    total_retries = 0
 
-    while True:
+    while total_retries < MAX_TOTAL_RETRIES:
+        total_retries += 1
         # API 호출
         logger.info("Calling Claude API for content generation...")
         response_text = _call_claude_api(client, current_prompt)
@@ -258,3 +261,8 @@ def generate_content(
                 f"안전한 표현으로 대체해주세요."
             ),
         )
+
+    # MAX_TOTAL_RETRIES 초과 시
+    raise ContentGenerationError(
+        f"Content generation failed after {MAX_TOTAL_RETRIES} total retries"
+    )

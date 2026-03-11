@@ -39,7 +39,7 @@ class BlogEditor:
 
     def _go_to_write_page(self) -> None:
         """글쓰기 페이지로 이동합니다."""
-        from config import NAVER_BLOG_WRITE_URL, STEP_TIMEOUT_SECONDS
+        from src.config import NAVER_BLOG_WRITE_URL, STEP_TIMEOUT_SECONDS
 
         write_url = NAVER_BLOG_WRITE_URL.format(blog_id=self.blog_id)
         logger.info(f"글쓰기 페이지 이동: {write_url}")
@@ -173,7 +173,7 @@ class BlogEditor:
             body_html: HTML 형식의 본문
             images: 이미지 파일 경로 리스트
         """
-        from config import STEP_TIMEOUT_SECONDS
+        from src.config import STEP_TIMEOUT_SECONDS
 
         images = images or []
         logger.info(f"본문 입력 시작 (이미지 {len(images)}개)")
@@ -234,7 +234,7 @@ class BlogEditor:
         Args:
             image_path: 이미지 파일 경로
         """
-        from config import STEP_TIMEOUT_SECONDS
+        from src.config import STEP_TIMEOUT_SECONDS
 
         logger.info(f"이미지 삽입: {image_path}")
 
@@ -311,7 +311,7 @@ class BlogEditor:
         Returns:
             발행된 글 URL
         """
-        from config import STEP_TIMEOUT_SECONDS
+        from src.config import STEP_TIMEOUT_SECONDS
 
         logger.info("발행 시작")
 
@@ -420,7 +420,7 @@ class BlogEditor:
         Returns:
             스크린샷 파일 경로
         """
-        from config import SCREENSHOTS_DIR
+        from src.config import SCREENSHOTS_DIR
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         screenshot_path = SCREENSHOTS_DIR / f"{name}_{timestamp}.png"
@@ -449,7 +449,7 @@ class BlogEditor:
         Returns:
             결과 딕셔너리 {"success": bool, "url": str, "error": str}
         """
-        from config import SCREENSHOTS_DIR
+        from src.config import SCREENSHOTS_DIR
 
         tags = tags or []
         images = images or []
@@ -517,5 +517,5 @@ class BlogEditor:
 def random_typing_delay() -> int:
     """랜덤 타이핑 딜레이를 반환합니다 (ms)."""
     import random
-    from config import TYPING_DELAY_MS
+    from src.config import TYPING_DELAY_MS
     return random.randint(TYPING_DELAY_MS[0], TYPING_DELAY_MS[1])
