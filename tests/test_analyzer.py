@@ -55,7 +55,14 @@ class TestContentParser:
 
     def test_parsed_content_output_schema(self):
         """ParsedContent 출력 스키마 테스트."""
-        from src.analyzer.content_parser import ParsedContent, content_to_dict
+        from src.analyzer.content_parser import ParsedContent, ContentSection, content_to_dict
+
+        sections = [
+            ContentSection(
+                heading="소제목1", heading_tag="h2", text="텍스트",
+                char_count=3, image_count=1, image_contexts=["컨텍스트"], order_index=0,
+            ),
+        ]
 
         content = ParsedContent(
             url="https://blog.naver.com/test/123",
@@ -70,6 +77,8 @@ class TestContentParser:
             has_list=True,
             has_table=False,
             related_keywords=["연관1", "연관2"],
+            sections=sections,
+            full_text="전체 텍스트 내용" * 100,
         )
 
         result = content_to_dict(content)
@@ -87,6 +96,13 @@ class TestContentParser:
         assert "has_list" in result
         assert "has_table" in result
         assert "related_keywords" in result
+
+        # 새로 추가된 필드 확인
+        assert "sections" in result
+        assert "full_text" in result
+        assert len(result["sections"]) == 1
+        assert result["sections"][0]["heading"] == "소제목1"
+        assert result["sections"][0]["heading_tag"] == "h2"
 
         # 타입 확인
         assert isinstance(result["char_count"], int)
@@ -118,6 +134,9 @@ class TestContentParser:
         assert result["url"] == "https://example.com"
         assert result["title"] == "Test"
         assert result["char_count"] == 100
+        # sections/full_text는 비어있으면 포함되지 않음
+        assert "sections" not in result
+        assert "full_text" not in result
 
 
 class TestPatternExtractor:
@@ -201,6 +220,7 @@ class TestPatternExtractor:
             image_position_pattern={"pattern": "distributed"},
             source_count=5,
             source_urls=["url1", "url2"],
+            source_titles=["제목1", "제목2"],
         )
 
         result = pattern_to_dict(pattern)
@@ -209,6 +229,7 @@ class TestPatternExtractor:
         assert result["avg_image_count"] == 5
         assert result["source_count"] == 5
         assert isinstance(result["title_patterns"], list)
+        assert result["source_titles"] == ["제목1", "제목2"]
 
 
 class TestAnalyzeKeyword:

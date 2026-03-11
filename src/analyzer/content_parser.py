@@ -46,6 +46,32 @@ def _convert_to_postview_url(url: str) -> str:
 
 
 @dataclass
+class ContentSection:
+    """본문의 한 섹션 (소제목 ~ 다음 소제목 사이)."""
+
+    heading: str
+    """섹션 소제목 ("" = 도입부)"""
+
+    heading_tag: str
+    """h2, h3, strong, "" 등"""
+
+    text: str
+    """섹션 본문 텍스트"""
+
+    char_count: int
+    """섹션 글자 수"""
+
+    image_count: int
+    """이 섹션의 이미지 개수"""
+
+    image_contexts: list[str]
+    """각 이미지 전후 텍스트 (~100자)"""
+
+    order_index: int
+    """섹션 순서 (0-based)"""
+
+
+@dataclass
 class ParsedContent:
     """파싱된 블로그 콘텐츠 구조."""
 
@@ -87,6 +113,12 @@ class ParsedContent:
 
     raw_text: str = ""
     """원본 텍스트 (디버깅용)"""
+
+    sections: list[ContentSection] = field(default_factory=list)
+    """섹션별 구조 데이터 (심층 분석용)"""
+
+    full_text: str = ""
+    """전체 본문 텍스트 (제한 없음, 심층 분석용)"""
 
 
 def parse_blog_content(
@@ -169,6 +201,9 @@ def parse_blog_content(
         # 연관 키워드 추출
         related_keywords = _extract_related_keywords(raw_text, keyword)
 
+        # 섹션 추출 (심층 분석용)
+        sections = _extract_sections(main_content)
+
         result = ParsedContent(
             url=url,
             title=title,
@@ -182,7 +217,9 @@ def parse_blog_content(
             has_list=has_list,
             has_table=has_table,
             related_keywords=related_keywords,
-            raw_text=raw_text[:1000],  # 처음 1000자만 저장
+            raw_text=raw_text[:1000],
+            sections=sections,
+            full_text=raw_text,
         )
 
         logger.info(
@@ -403,6 +440,165 @@ def _calculate_image_positions(container, images: list) -> list[float]:
     return positions
 
 
+def _extract_sections(container) -> list['ContentSection']:
+    """
+    본문을 섹션 단위로 분리합니다.
+
+    SE 에디터: .se-component 순회 (se-text, se-image 등)
+    구 에디터: p, h2, h3, img 태그 순서대로 워킹
+    """
+    sections: list[ContentSection] = []
+    current_heading = ""
+    current_heading_tag = ""
+    current_texts: list[str] = []
+    current_image_count = 0
+    current_image_contexts: list[str] = []
+    section_index = 0
+
+    def _flush_section():
+        nonlocal section_index, current_heading, current_heading_tag
+        nonlocal current_texts, current_image_count, current_image_contexts
+        text = " ".join(current_texts).strip()
+        if text or current_image_count > 0:
+            sections.append(ContentSection(
+                heading=current_heading,
+                heading_tag=current_heading_tag,
+                text=text,
+                char_count=len(text.replace(" ", "").replace("\n", "")),
+                image_count=current_image_count,
+                image_contexts=current_image_contexts,
+                order_index=section_index,
+            ))
+            section_index += 1
+        current_heading = ""
+        current_heading_tag = ""
+        current_texts = []
+        current_image_count = 0
+        current_image_contexts = []
+
+    try:
+        # SE 에디터 (.se-component 기반)
+        components = container.css(".se-component")
+        if components:
+            for comp in components:
+                # 제목 영역 스킵
+                classes = comp.attrib.get("class", "")
+                if "se-documentTitle" in classes:
+                    continue
+
+                # 텍스트 컴포넌트
+                if "se-text" in classes:
+                    # h2/h3 확인
+                    found_heading = False
+                    for tag in ("h2", "h3"):
+                        heading_elems = comp.css(tag)
+                        if heading_elems:
+                            heading_text = heading_elems[0].text.strip() if hasattr(heading_elems[0], 'text') else ""
+                            if heading_text and 3 <= len(heading_text) <= 80:
+                                _flush_section()
+                                current_heading = heading_text
+                                current_heading_tag = tag
+                                found_heading = True
+                                break
+
+                    # strong/b 소제목 (h2/h3가 없을 때만)
+                    if not found_heading:
+                        strong_elems = comp.css("strong, b")
+                        for s in strong_elems:
+                            s_text = s.text.strip() if hasattr(s, 'text') else ""
+                            if s_text and 5 <= len(s_text) <= 50:
+                                _flush_section()
+                                current_heading = s_text
+                                current_heading_tag = "strong"
+                                break
+
+                    # 본문 텍스트 추출
+                    text = ""
+                    if hasattr(comp, 'get_all_text'):
+                        text = comp.get_all_text() or ""
+                    elif hasattr(comp, 'text'):
+                        text = comp.text or ""
+                    text = text.strip()
+                    if text:
+                        current_texts.append(text)
+
+                # 이미지 컴포넌트
+                elif "se-image" in classes or "se-imageStrip" in classes:
+                    imgs = comp.css("img")
+                    valid_imgs = [
+                        img for img in imgs
+                        if not _is_icon_image(img.attrib.get("src", ""))
+                        and not _is_small_image(img)
+                    ]
+                    if valid_imgs:
+                        current_image_count += len(valid_imgs)
+                        # 이미지 전후 텍스트 컨텍스트
+                        context_text = " ".join(current_texts[-2:]) if current_texts else ""
+                        context = context_text[-100:] if len(context_text) > 100 else context_text
+                        for _ in valid_imgs:
+                            current_image_contexts.append(context)
+
+            _flush_section()
+
+        else:
+            # 구 에디터 fallback: p, h2, h3, img 순회
+            # strong/b는 p 내부에서 소제목 역할 여부를 판단
+            all_elements = container.css("p, h2, h3, h4, img")
+            for elem in all_elements:
+                tag_name = getattr(elem, 'tag', '') or ''
+                tag_name = tag_name.lower() if tag_name else ''
+
+                if tag_name in ("h2", "h3", "h4"):
+                    text = elem.text.strip() if hasattr(elem, 'text') else ""
+                    if text and 3 <= len(text) <= 80:
+                        _flush_section()
+                        current_heading = text
+                        current_heading_tag = tag_name
+
+                elif tag_name == "img":
+                    src = elem.attrib.get("src", "")
+                    if src and not _is_icon_image(src) and not _is_small_image(elem):
+                        current_image_count += 1
+                        context_text = " ".join(current_texts[-2:]) if current_texts else ""
+                        context = context_text[-100:] if len(context_text) > 100 else context_text
+                        current_image_contexts.append(context)
+
+                elif tag_name == "p":
+                    # p 내부의 strong/b가 소제목인지 확인
+                    text = elem.text.strip() if hasattr(elem, 'text') else ""
+                    strong_elems = []
+                    try:
+                        strong_elems = elem.css("strong, b")
+                    except Exception:
+                        pass
+
+                    if strong_elems and not text:
+                        # p 전체가 strong/b로만 구성된 경우 → 소제목 취급
+                        s_text = strong_elems[0].text.strip() if hasattr(strong_elems[0], 'text') else ""
+                        if s_text and 5 <= len(s_text) <= 50:
+                            _flush_section()
+                            current_heading = s_text
+                            current_heading_tag = "strong"
+                            continue
+
+                    # 일반 본문 텍스트
+                    full_text = ""
+                    if hasattr(elem, 'get_all_text'):
+                        full_text = elem.get_all_text() or ""
+                    elif text:
+                        full_text = text
+                    full_text = full_text.strip()
+                    if full_text:
+                        current_texts.append(full_text)
+
+            _flush_section()
+
+    except Exception as e:
+        logger.debug(f"섹션 추출 오류: {e}")
+
+    return sections
+
+
 def _extract_headings(container) -> list[str]:
     """소제목을 추출합니다."""
     headings = []
@@ -505,7 +701,7 @@ def _extract_related_keywords(text: str, main_keyword: str) -> list[str]:
 
 def content_to_dict(content: ParsedContent) -> dict:
     """ParsedContent를 딕셔너리로 변환합니다."""
-    return {
+    result = {
         "url": content.url,
         "title": content.title,
         "char_count": content.char_count,
@@ -519,3 +715,19 @@ def content_to_dict(content: ParsedContent) -> dict:
         "has_table": content.has_table,
         "related_keywords": content.related_keywords,
     }
+    if content.sections:
+        result["sections"] = [
+            {
+                "heading": s.heading,
+                "heading_tag": s.heading_tag,
+                "text": s.text,
+                "char_count": s.char_count,
+                "image_count": s.image_count,
+                "image_contexts": s.image_contexts,
+                "order_index": s.order_index,
+            }
+            for s in content.sections
+        ]
+    if content.full_text:
+        result["full_text"] = content.full_text[:5000]
+    return result

@@ -148,7 +148,8 @@ def cli():
 @click.option("--keyword", required=True, help="분석할 키워드")
 @click.option("--top-n", default=5, help="분석할 상위 블로그 개수")
 @click.option("--save-to-db", is_flag=True, help="결과를 DB에 저장")
-def analyze(keyword: str, top_n: int, save_to_db: bool):
+@click.option("--no-deep", is_flag=True, help="Gemini Flash 심층 분석 비활성화")
+def analyze(keyword: str, top_n: int, save_to_db: bool, no_deep: bool):
     """
     키워드 상위노출 패턴을 분석합니다.
 
@@ -159,7 +160,7 @@ def analyze(keyword: str, top_n: int, save_to_db: bool):
 
         logger.info(f"키워드 분석 시작: '{keyword}'")
 
-        result = analyze_keyword(keyword, top_n=top_n, include_raw_data=False)
+        result = analyze_keyword(keyword, top_n=top_n, include_raw_data=False, no_deep=no_deep)
 
         if not result["success"]:
             output_error(result.get("error", "분석 실패"))
@@ -177,6 +178,7 @@ def analyze(keyword: str, top_n: int, save_to_db: bool):
                 "keyword_placement": result["pattern"].get("keyword_placement"),
                 "related_keywords": result["pattern"].get("related_keywords"),
                 "content_structure": result["pattern"].get("content_structure"),
+                "deep_analysis": result["pattern"].get("deep_analysis"),
                 "raw_data": result["pattern"],
                 "analyzed_at": datetime.now().isoformat(),
             }

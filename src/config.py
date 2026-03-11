@@ -89,6 +89,9 @@ CLAUDE_TEMPERATURE: float = 0.7
 # Nano Banana Pro 설정
 GEMINI_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
 
+# Gemini Flash 심층 분석 설정
+GEMINI_ANALYSIS_MODEL: str = "gemini-2.0-flash"
+
 # 출력 디렉토리
 OUTPUT_DIR = PROJECT_ROOT / "output"
 IMAGES_DIR = OUTPUT_DIR / "images"

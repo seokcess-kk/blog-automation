@@ -33,6 +33,7 @@ class PatternData(TypedDict, total=False):
     related_keywords: str | list[str]
     content_structure: str | dict[str, Any]
     source_titles: list[str]
+    deep_analysis: dict[str, Any]
 
 
 def _load_template(filename: str) -> str:
@@ -74,6 +75,50 @@ def _format_dict(data: str | dict[str, Any]) -> str:
             lines.append(f"- **{key}**: {', '.join(str(v) for v in value)}")
         else:
             lines.append(f"- **{key}**: {value}")
+    return "\n".join(lines)
+
+
+def _format_deep_analysis(deep: dict[str, Any]) -> str:
+    """심층 분석 데이터를 프롬프트용 마크다운으로 변환합니다."""
+    lines = []
+
+    lines.append(f"**지배적 문체**: {deep.get('dominant_tone', '분석 없음')}")
+    lines.append(f"**공통 전개 구조**: {deep.get('common_structure', '분석 없음')}")
+    lines.append("")
+    lines.append(f"**이미지 배치 전략**:")
+    lines.append(deep.get("image_strategy", "분석 없음"))
+    lines.append("")
+
+    recommended = deep.get("recommended_sections", [])
+    if recommended:
+        lines.append("**추천 섹션 구성**:")
+        for i, sec in enumerate(recommended, 1):
+            heading = sec.get("heading", f"섹션 {i}")
+            chars = sec.get("target_chars", "")
+            img = sec.get("image_count", 0)
+            role = sec.get("role", "")
+            guidelines = sec.get("guidelines", "")
+            lines.append(f"{i}. **{heading}** ({chars}자, 이미지 {img}개) - {role}")
+            if guidelines:
+                lines.append(f"   - {guidelines}")
+        lines.append("")
+
+    guidelines = deep.get("writing_guidelines", "")
+    if guidelines:
+        lines.append(f"**종합 작성 가이드라인**:")
+        lines.append(guidelines)
+        lines.append("")
+
+    # 개별 블로그 분석 요약 (인상적인 표현)
+    source_analyses = deep.get("source_analyses", [])
+    all_phrases = []
+    for sa in source_analyses:
+        all_phrases.extend(sa.get("key_phrases", []))
+    if all_phrases:
+        lines.append("**상위노출 글의 인상적인 표현 (참고용)**:")
+        for phrase in all_phrases[:15]:
+            lines.append(f"- {phrase}")
+
     return "\n".join(lines)
 
 
@@ -122,6 +167,12 @@ def build_prompt(
     related_keywords = pattern_data.get("related_keywords", "분석된 연관 키워드 없음")
     content_structure = pattern_data.get("content_structure", "서론-본론-결론 구조")
     source_titles = pattern_data.get("source_titles", [])
+    deep_analysis = pattern_data.get("deep_analysis")
+
+    # 심층 분석 포맷팅
+    deep_analysis_text = ""
+    if deep_analysis:
+        deep_analysis_text = _format_deep_analysis(deep_analysis)
 
     # 변수 치환
     variables = {
@@ -136,6 +187,7 @@ def build_prompt(
         "{{related_keywords}}": _format_list(related_keywords),
         "{{content_structure}}": _format_dict(content_structure),
         "{{source_titles}}": _format_list(source_titles) if source_titles else "분석된 제목 없음",
+        "{{deep_analysis}}": deep_analysis_text if deep_analysis_text else "심층 분석 데이터 없음",
     }
 
     user_prompt = pattern_template

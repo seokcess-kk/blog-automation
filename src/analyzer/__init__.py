@@ -24,6 +24,11 @@ from src.analyzer.pattern_extractor import (
     ExtractedPattern,
     pattern_to_dict,
 )
+from src.analyzer.deep_analyzer import (
+    analyze_blogs_deep,
+    AggregatedDeepAnalysis,
+    deep_analysis_to_dict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +37,10 @@ __all__ = [
     "collect_top_urls",
     "parse_blog_content",
     "extract_patterns",
+    "analyze_blogs_deep",
     "ParsedContent",
     "ExtractedPattern",
+    "AggregatedDeepAnalysis",
 ]
 
 
@@ -41,6 +48,7 @@ def analyze_keyword(
     keyword: str,
     top_n: int = 5,
     include_raw_data: bool = False,
+    no_deep: bool = False,
 ) -> dict[str, Any]:
     """
     키워드로 상위노출 패턴을 분석합니다.
@@ -54,6 +62,7 @@ def analyze_keyword(
         keyword: 분석할 키워드
         top_n: 분석할 상위 블로그 개수 (기본값: 5)
         include_raw_data: 원본 분석 데이터 포함 여부
+        no_deep: Gemini Flash 심층 분석 비활성화 (기본값: False)
 
     Returns:
         분석 결과 딕셔너리:
@@ -116,6 +125,20 @@ def analyze_keyword(
         result["analyzed_count"] = len(parsed_contents)
         logger.info(f"파싱 완료: {len(parsed_contents)}개")
 
+        # Step 2.5: 심층 분석 (Gemini Flash)
+        deep_analysis_dict = None
+        if not no_deep:
+            logger.info("Step 2.5: 심층 분석 (Gemini Flash)...")
+            try:
+                deep_result = analyze_blogs_deep(parsed_contents, keyword)
+                if deep_result:
+                    deep_analysis_dict = deep_analysis_to_dict(deep_result)
+                    logger.info("심층 분석 완료")
+                else:
+                    logger.warning("심층 분석 결과 없음 (계속 진행)")
+            except Exception as e:
+                logger.warning(f"심층 분석 실패 (계속 진행): {e}")
+
         # Step 3: 패턴 추출
         logger.info("Step 3: 패턴 추출 중...")
         pattern = extract_patterns(parsed_contents, keyword)
@@ -125,7 +148,13 @@ def analyze_keyword(
             logger.warning(result["error"])
             return result
 
-        result["pattern"] = pattern_to_dict(pattern)
+        pattern_dict = pattern_to_dict(pattern)
+
+        # 심층 분석 결과를 패턴에 포함
+        if deep_analysis_dict:
+            pattern_dict["deep_analysis"] = deep_analysis_dict
+
+        result["pattern"] = pattern_dict
         result["success"] = True
 
         # 원본 데이터 포함 (옵션)
@@ -137,6 +166,7 @@ def analyze_keyword(
             f"avg_chars={pattern.avg_char_count}, "
             f"avg_images={pattern.avg_image_count}, "
             f"avg_headings={pattern.avg_heading_count}"
+            f"{', deep_analysis=포함' if deep_analysis_dict else ''}"
         )
 
         return result

@@ -54,6 +54,54 @@ class TestPromptBuilder:
 
         assert result is not None
 
+    def test_build_prompt_with_deep_analysis(self):
+        """심층 분석 데이터 포함 프롬프트 렌더링 테스트."""
+        from src.generator.prompt_builder import build_prompt, PatternData
+
+        pattern_data: PatternData = {
+            "avg_char_count": 2000,
+            "avg_image_count": 7,
+            "avg_heading_count": 4,
+            "title_patterns": ["keyword_position:front"],
+            "related_keywords": ["식단", "운동"],
+            "deep_analysis": {
+                "dominant_tone": "대화체",
+                "common_structure": "도입→정보→비교→CTA",
+                "image_strategy": "H2 직후 관련 이미지 1개, 리뷰 섹션에 2~3개 집중",
+                "recommended_sections": [
+                    {"heading": "도입", "target_chars": 300, "image_count": 1, "role": "도입", "guidelines": "개인 경험"},
+                    {"heading": "핵심 정보", "target_chars": 400, "image_count": 2, "role": "본론", "guidelines": "상세 설명"},
+                ],
+                "writing_guidelines": "친근한 대화체로 작성, ~거든요/~했어요 어미 사용",
+                "source_analyses": [
+                    {
+                        "url": "https://blog.naver.com/test/1",
+                        "title": "테스트",
+                        "writing_tone": "대화체",
+                        "sentence_style": "짧은 문장",
+                        "opening_strategy": "경험담",
+                        "closing_strategy": "CTA",
+                        "section_flow": [],
+                        "content_type": "리뷰형",
+                        "image_placement": [],
+                        "keyword_usage_style": "자연스럽게",
+                        "key_phrases": ["직접 해봤는데", "정말 추천"],
+                    },
+                ],
+            },
+        }
+
+        result = build_prompt(keyword="다이어트", pattern_data=pattern_data)
+
+        assert result is not None
+        # 심층 분석 내용이 user 프롬프트에 포함되어야 함
+        assert "대화체" in result["user"]
+        assert "도입→정보→비교→CTA" in result["user"]
+        assert "H2 직후" in result["user"]
+        assert "직접 해봤는데" in result["user"]
+        # 기본 placeholder가 남아있지 않아야 함
+        assert "{{deep_analysis}}" not in result["user"]
+
 
 class TestContentGenerator:
     """content_generator 모듈 테스트."""
