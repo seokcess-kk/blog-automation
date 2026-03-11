@@ -52,3 +52,9 @@ n8n_data/
 # Temp files
 *.tmp
 *.bak
+
+# Browser session data
+browser_data/
+
+# Screenshots
+screenshots/
