@@ -151,7 +151,9 @@ def cli():
 @click.option("--no-deep", is_flag=True, help="Gemini Flash 심층 분석 비활성화")
 @click.option("--brand-url", default=None, help="브랜드 홈페이지 URL")
 @click.option("--brand-name", default=None, help="브랜드명")
-def analyze(keyword: str, top_n: int, save_to_db: bool, no_deep: bool, brand_url: Optional[str], brand_name: Optional[str]):
+@click.option("--brand-location", default=None, help="브랜드 위치 정보 (예: '정발산역 인근, 낙원프라자 4층')")
+@click.option("--brand-programs", default=None, help="대표 프로그램명 (쉼표 구분, 예: '다잇단,BB주사,맞춤한약')")
+def analyze(keyword: str, top_n: int, save_to_db: bool, no_deep: bool, brand_url: Optional[str], brand_name: Optional[str], brand_location: Optional[str], brand_programs: Optional[str]):
     """
     키워드 상위노출 패턴을 분석합니다.
 
@@ -177,10 +179,38 @@ def analyze(keyword: str, top_n: int, save_to_db: bool, no_deep: bool, brand_url
             brand_info = crawl_brand_homepage(brand_url, brand_name=brand_name)
             if brand_info:
                 brand_info_dict = brand_info_to_dict(brand_info)
+                # brand_name을 brand_info에 명시적 추가
+                if brand_name and "brand_name" not in brand_info_dict:
+                    brand_info_dict["brand_name"] = brand_name
                 result["brand_info"] = brand_info_dict
-                logger.info(f"브랜드 크롤링 완료: 강점={len(brand_info.extracted_strengths)}")
+                logger.info(f"브랜드 크롤링 완료: 브랜드명={brand_name}, 강점={len(brand_info.extracted_strengths)}")
             else:
                 logger.warning("브랜드 크롤링 실패 (계속 진행)")
+
+        # CLI에서 직접 입력한 브랜드 정보 병합 (크롤링 결과보다 우선)
+        if brand_info_dict is None and (brand_name or brand_location or brand_programs):
+            brand_info_dict = {}
+
+        if brand_info_dict is not None:
+            # 위치 정보 (CLI 입력 우선)
+            if brand_location:
+                brand_info_dict["location"] = {"nearby_station": brand_location}
+                logger.info(f"위치 정보 추가: {brand_location}")
+
+            # 프로그램명 (CLI 입력 우선, 기존 값과 병합)
+            if brand_programs:
+                cli_programs = [p.strip() for p in brand_programs.split(",") if p.strip()]
+                existing_programs = brand_info_dict.get("programs", [])
+                # CLI 입력을 앞에 배치 (우선순위)
+                merged_programs = cli_programs + [p for p in existing_programs if p not in cli_programs]
+                brand_info_dict["programs"] = merged_programs[:5]
+                logger.info(f"프로그램 추가: {cli_programs}")
+
+            # brand_name 다시 확인
+            if brand_name and "brand_name" not in brand_info_dict:
+                brand_info_dict["brand_name"] = brand_name
+
+            result["brand_info"] = brand_info_dict
 
         # DB 저장
         if save_to_db and result["success"]:

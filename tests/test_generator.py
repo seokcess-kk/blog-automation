@@ -218,3 +218,117 @@ class TestGenerateContentIntegration:
 
         assert "title" in result
         assert len(result["title"]) > 0
+
+
+class TestBrandInfoFormatting:
+    """브랜드 정보 포맷팅 테스트."""
+
+    def test_format_brand_info_includes_brand_name(self):
+        """브랜드명이 포맷팅 결과에 포함되는지 테스트."""
+        from src.generator.prompt_builder import _format_brand_info
+
+        brand_info = {
+            "brand_name": "다이트한의원 서울점",
+            "summary": "한방 다이어트 전문",
+            "extracted_strengths": ["11만 건 처방 경험", "체질별 맞춤 치료"],
+            "extracted_services": ["한약 처방", "침 치료"],
+        }
+
+        result = _format_brand_info(brand_info)
+
+        # 브랜드명이 가장 먼저 포함되어야 함
+        assert "**브랜드명**: 다이트한의원 서울점" in result
+        # 브랜드명이 다른 정보보다 먼저 나와야 함
+        brand_name_pos = result.find("브랜드명")
+        summary_pos = result.find("브랜드 요약")
+        assert brand_name_pos < summary_pos
+
+    def test_format_brand_info_without_brand_name(self):
+        """브랜드명 없이도 정상 작동하는지 테스트."""
+        from src.generator.prompt_builder import _format_brand_info
+
+        brand_info = {
+            "summary": "한방 다이어트 전문",
+            "extracted_strengths": ["11만 건 처방 경험"],
+        }
+
+        result = _format_brand_info(brand_info)
+
+        # 브랜드명 필드가 없어도 에러 없이 동작
+        assert "브랜드 요약" in result
+        assert "브랜드명" not in result
+
+    def test_format_brand_info_empty(self):
+        """빈 브랜드 정보 처리 테스트."""
+        from src.generator.prompt_builder import _format_brand_info
+
+        result = _format_brand_info({})
+
+        assert result == "브랜드 정보 없음"
+
+    def test_build_prompt_includes_brand_info(self):
+        """build_prompt에서 브랜드 정보가 프롬프트에 포함되는지 테스트."""
+        from src.generator.prompt_builder import build_prompt
+
+        pattern_data = {
+            "avg_char_count": 2000,
+            "avg_image_count": 5,
+            "brand_info": {
+                "brand_name": "테스트 브랜드",
+                "summary": "테스트 요약",
+                "extracted_strengths": ["강점1", "강점2"],
+            },
+        }
+
+        result = build_prompt(keyword="테스트", pattern_data=pattern_data)
+
+        # 브랜드명이 user 프롬프트에 포함되어야 함
+        assert "테스트 브랜드" in result["user"]
+        assert "브랜드명" in result["user"]
+
+    def test_pattern_injection_includes_brand_guidelines(self):
+        """프롬프트 템플릿에 브랜드 통합 지침이 포함되어 있는지 테스트."""
+        from src.generator.prompt_builder import build_prompt
+
+        result = build_prompt(keyword="테스트")
+
+        # 작성 지침 12번이 포함되어야 함
+        assert "브랜드 통합" in result["user"]
+        assert "4~5회" in result["user"]
+
+    def test_format_brand_info_with_new_fields(self):
+        """새로 추가된 브랜드 필드(programs, location, stats)가 포맷팅되는지 테스트."""
+        from src.generator.prompt_builder import _format_brand_info
+
+        brand_info = {
+            "brand_name": "다이트한의원 서울점",
+            "summary": "한방 다이어트 전문",
+            "programs": ["다잇단", "BB주사", "맞춤한약"],
+            "stats": ["114,948명 치료 경험", "만족도 98%"],
+            "location": {
+                "address": "서울시 강남구 압구정동 123",
+                "nearby_station": "압구정역 3번출구",
+                "landmarks": "갤러리아백화점, 현대아파트",
+            },
+            "team": ["홍길동 원장 (한의학박사)"],
+        }
+
+        result = _format_brand_info(brand_info)
+
+        # 프로그램명 포함 확인
+        assert "대표 프로그램/제품명" in result
+        assert "다잇단" in result
+        assert "BB주사" in result
+
+        # 실적/통계 포함 확인
+        assert "실적/통계" in result
+        assert "114,948명" in result
+
+        # 위치 정보 포함 확인
+        assert "위치 정보" in result
+        assert "압구정역" in result
+        assert "갤러리아백화점" in result
+
+        # 의료진 포함 확인
+        assert "전문가/의료진" in result
+        assert "홍길동" in result

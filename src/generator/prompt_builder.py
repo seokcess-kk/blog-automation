@@ -151,6 +151,12 @@ def _format_brand_info(brand: dict[str, Any]) -> str:
     """브랜드 정보를 프롬프트용 마크다운으로 변환합니다."""
     lines = []
 
+    # 브랜드명을 가장 먼저 명시
+    brand_name = brand.get("brand_name", "")
+    if brand_name:
+        lines.append(f"**브랜드명**: {brand_name}")
+        lines.append("")
+
     # 브랜드 요약
     summary = brand.get("summary", "")
     if summary:
@@ -184,6 +190,46 @@ def _format_brand_info(brand: dict[str, Any]) -> str:
         lines.append("**주요 서비스/제품**:")
         for s in services[:5]:
             lines.append(f"- {s}")
+        lines.append("")
+
+    # 대표 프로그램/제품명
+    programs = brand.get("programs", [])
+    if programs:
+        lines.append("**대표 프로그램/제품명** (원고에서 반드시 언급):")
+        for p in programs[:5]:
+            lines.append(f"- {p}")
+        lines.append("")
+
+    # 실적/통계 (원고에 자연스럽게 삽입)
+    stats = brand.get("stats", [])
+    if stats:
+        lines.append("**실적/통계** (신뢰감 형성에 활용):")
+        for s in stats[:5]:
+            lines.append(f"- {s}")
+        lines.append("")
+
+    # 위치 정보
+    location = brand.get("location", {})
+    if location:
+        loc_parts = []
+        if location.get("address"):
+            loc_parts.append(f"주소: {location['address']}")
+        if location.get("nearby_station"):
+            loc_parts.append(f"인근역: {location['nearby_station']}")
+        if location.get("landmarks"):
+            loc_parts.append(f"주변: {location['landmarks']}")
+        if loc_parts:
+            lines.append("**위치 정보** (지역 키워드와 함께 활용):")
+            for lp in loc_parts:
+                lines.append(f"- {lp}")
+            lines.append("")
+
+    # 의료진/전문가 정보
+    team = brand.get("team", [])
+    if team:
+        lines.append("**전문가/의료진**:")
+        for t in team[:3]:
+            lines.append(f"- {t}")
         lines.append("")
 
     # 메인 페이지 정보 (간략)

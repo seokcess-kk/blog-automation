@@ -75,6 +75,18 @@ class BrandInfo:
     summary: str = ""
     """브랜드 요약 (1~2문장)"""
 
+    programs: list[str] = field(default_factory=list)
+    """대표 프로그램/제품명 (예: 다잇단, BB주사 등)"""
+
+    location: dict[str, str] = field(default_factory=dict)
+    """위치 정보: {"address": ..., "nearby_station": ..., "landmarks": ...}"""
+
+    stats: list[str] = field(default_factory=list)
+    """실적/통계 (예: "114,948명 치료 경험", "20년 전통" 등)"""
+
+    team: list[str] = field(default_factory=list)
+    """의료진/전문가 정보"""
+
 
 def crawl_brand_homepage(
     url: str,
@@ -158,6 +170,10 @@ def crawl_brand_homepage(
             extracted_services=extracted.get("services", []),
             brand_tone=extracted.get("tone", "professional"),
             summary=extracted.get("summary", ""),
+            programs=extracted.get("programs", []),
+            location=extracted.get("location", {}),
+            stats=extracted.get("stats", []),
+            team=extracted.get("team", []),
         )
 
         logger.info(
@@ -398,16 +414,24 @@ def _extract_brand_strengths(
 
     prompt = f"""다음은 기업/브랜드 홈페이지에서 크롤링한 텍스트입니다.
 {brand_hint}
-이 브랜드의 핵심 강점, 서비스/제품, 브랜드 톤을 분석해주세요.
+이 브랜드의 핵심 강점, 서비스/제품, 브랜드 톤, 위치 정보, 실적 등을 분석해주세요.
 
 {all_text}
 
 ## 분석 요청
-위 내용을 분석하여 아래 JSON 형식으로 응답해주세요:
+위 내용을 분석하여 아래 JSON 형식으로 응답해주세요. 정보가 없는 필드는 빈 배열/객체로 반환:
 
 {{
     "strengths": ["핵심 강점/차별점 3~5개 (짧은 문장)"],
     "services": ["주요 서비스/제품 3~5개"],
+    "programs": ["대표 프로그램/제품 이름 (예: 다잇단, BB주사, 맞춤한약 등)"],
+    "stats": ["실적/통계 숫자 (예: '114,948명 치료', '20년 전통', '만족도 98%' 등)"],
+    "location": {{
+        "address": "주소 (있으면)",
+        "nearby_station": "인근 지하철역 (있으면)",
+        "landmarks": "주변 랜드마크 (있으면, 쉼표 구분)"
+    }},
+    "team": ["대표 의료진/전문가 이름 및 약력 (있으면)"],
     "tone": "브랜드 톤 (professional/friendly/luxury/innovative/traditional 중 택1)",
     "summary": "브랜드 한줄 요약 (20~40자)"
 }}"""
@@ -418,6 +442,10 @@ def _extract_brand_strengths(
             return {
                 "strengths": result.get("strengths", []),
                 "services": result.get("services", []),
+                "programs": result.get("programs", []),
+                "stats": result.get("stats", []),
+                "location": result.get("location", {}),
+                "team": result.get("team", []),
                 "tone": result.get("tone", "professional"),
                 "summary": result.get("summary", ""),
             }
@@ -484,6 +512,10 @@ def _fallback_extraction(
     return {
         "strengths": strengths[:5] if strengths else ["정보 없음"],
         "services": services[:5] if services else ["정보 없음"],
+        "programs": [],
+        "stats": [],
+        "location": {},
+        "team": [],
         "tone": "professional",
         "summary": main_page.title[:40] if main_page.title else "",
     }
@@ -541,4 +573,8 @@ def brand_info_to_dict(info: BrandInfo) -> dict[str, Any]:
         "extracted_services": info.extracted_services,
         "brand_tone": info.brand_tone,
         "summary": info.summary,
+        "programs": info.programs,
+        "location": info.location,
+        "stats": info.stats,
+        "team": info.team,
     }
