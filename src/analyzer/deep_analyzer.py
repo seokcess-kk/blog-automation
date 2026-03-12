@@ -52,6 +52,15 @@ class BlogDeepAnalysis:
     key_phrases: list[str]
     """인상적인 표현 5~10개"""
 
+    main_topics: list[dict[str, str]] = field(default_factory=list)
+    """[{"topic": "토픽명", "description": "설명"}] - 이 글이 다루는 주요 주제/토픽"""
+
+    competitor_brands: list[str] = field(default_factory=list)
+    """감지된 경쟁사 브랜드명 (한의원, 클리닉, 병원 등)"""
+
+    informational_content: str = ""
+    """경쟁사 브랜드 제외한 순수 정보성 내용 요약"""
+
 
 @dataclass
 class AggregatedDeepAnalysis:
@@ -75,6 +84,15 @@ class AggregatedDeepAnalysis:
     source_analyses: list[BlogDeepAnalysis] = field(default_factory=list)
     """개별 블로그 분석 결과"""
 
+    common_topics: list[dict[str, Any]] = field(default_factory=list)
+    """[{"topic": "토픽명", "frequency": 4, "recommended_coverage": "필수/권장"}] - 공통 토픽"""
+
+    filtered_competitors: list[str] = field(default_factory=list)
+    """제외할 경쟁사 브랜드 목록 (전체 블로그에서 감지된 브랜드 병합)"""
+
+    topic_outline: str = ""
+    """정보성 원고 토픽 구성 제안"""
+
 
 def _build_single_blog_prompt(content: ParsedContent, keyword: str) -> str:
     """단일 블로그 분석용 프롬프트를 생성합니다."""
@@ -90,7 +108,7 @@ def _build_single_blog_prompt(content: ParsedContent, keyword: str) -> str:
         sections_text = f"\n### [전체 본문]\n{content.full_text[:2000]}\n"
 
     return f"""다음은 네이버 블로그에서 "{keyword}" 키워드로 상위노출된 글입니다.
-이 글의 문체, 전개 방식, 이미지 배치 전략을 분석해주세요.
+이 글의 문체, 전개 방식, 이미지 배치 전략, 그리고 다루는 주요 토픽을 분석해주세요.
 
 ## 블로그 정보
 - 제목: {content.title}
@@ -117,14 +135,34 @@ def _build_single_blog_prompt(content: ParsedContent, keyword: str) -> str:
         {{"position": "위치 설명", "purpose": "이미지 목적", "count": 1}}
     ],
     "keyword_usage_style": "키워드 활용 방식 설명",
-    "key_phrases": ["인상적인 표현 5~10개"]
-}}"""
+    "key_phrases": ["인상적인 표현 5~10개"],
+    "main_topics": [
+        {{"topic": "주요 토픽/주제명", "description": "이 토픽에서 다루는 핵심 내용 요약"}}
+    ],
+    "competitor_brands": ["글에서 언급된 특정 브랜드/업체/한의원/클리닉/병원 이름 (있으면)"],
+    "informational_content": "특정 브랜드 홍보 내용을 제외한 순수 정보성 내용 요약 (1~2문장)"
+}}
+
+## 토픽 분석 가이드
+- main_topics: 이 글이 다루는 핵심 주제들 (예: "다이어트 원리", "체질 분석", "시술 과정", "효과와 주의사항" 등)
+- competitor_brands: 특정 업체/브랜드명이 있다면 추출 (일반 명사인 "한의원", "병원"은 제외, "XX한의원", "YY클리닉" 같은 고유명사만)
+- informational_content: 브랜드 광고가 아닌, 독자에게 유용한 정보 부분만 요약"""
 
 
 def _build_aggregation_prompt(analyses: list[BlogDeepAnalysis], keyword: str) -> str:
     """종합 분석용 프롬프트를 생성합니다."""
     summaries = []
+    all_topics = []
+    all_competitors = []
+
     for i, a in enumerate(analyses, 1):
+        # 토픽 수집
+        all_topics.extend(a.main_topics)
+        all_competitors.extend(a.competitor_brands)
+
+        topics_str = ", ".join([t.get("topic", "") for t in a.main_topics]) if a.main_topics else "없음"
+        competitors_str = ", ".join(a.competitor_brands) if a.competitor_brands else "없음"
+
         summaries.append(f"""### 블로그 {i}: {a.title}
 - 문체: {a.writing_tone}
 - 문장: {a.sentence_style}
@@ -132,14 +170,27 @@ def _build_aggregation_prompt(analyses: list[BlogDeepAnalysis], keyword: str) ->
 - 마무리: {a.closing_strategy}
 - 유형: {a.content_type}
 - 이미지 배치: {json.dumps(a.image_placement, ensure_ascii=False)}
-- 키워드 활용: {a.keyword_usage_style}""")
+- 키워드 활용: {a.keyword_usage_style}
+- 주요 토픽: {topics_str}
+- 감지된 브랜드: {competitors_str}
+- 정보성 내용: {a.informational_content or '없음'}""")
 
     analyses_text = "\n\n".join(summaries)
+
+    # 수집된 토픽/경쟁사 목록 전달
+    collected_topics = list(set([t.get("topic", "") for t in all_topics if t.get("topic")]))
+    collected_competitors = list(set(all_competitors))
 
     return f"""다음은 "{keyword}" 키워드의 네이버 상위노출 블로그 {len(analyses)}개를 각각 분석한 결과입니다.
 이들의 공통 패턴을 종합하여 새로운 블로그 글 작성 가이드라인을 만들어주세요.
 
 {analyses_text}
+
+## 수집된 토픽 목록 (빈도 분석 필요)
+{json.dumps(collected_topics, ensure_ascii=False)}
+
+## 감지된 경쟁사 브랜드 (제외 대상)
+{json.dumps(collected_competitors, ensure_ascii=False)}
 
 ## 종합 분석 요청
 위 분석 결과를 종합하여 아래 JSON 형식으로 응답해주세요:
@@ -151,8 +202,19 @@ def _build_aggregation_prompt(analyses: list[BlogDeepAnalysis], keyword: str) ->
     "recommended_sections": [
         {{"heading": "추천 소제목", "target_chars": 300, "image_count": 1, "role": "역할", "guidelines": "작성 지침"}}
     ],
-    "writing_guidelines": "종합 작성 가이드라인 (문체, 어투, 핵심 포인트 등)"
-}}"""
+    "writing_guidelines": "종합 작성 가이드라인 (문체, 어투, 핵심 포인트 등)",
+    "common_topics": [
+        {{"topic": "공통 토픽명", "frequency": 3, "recommended_coverage": "필수/권장/선택"}}
+    ],
+    "filtered_competitors": ["제외할 경쟁사 브랜드 목록"],
+    "topic_outline": "정보성 원고 작성을 위한 토픽 구성 제안 (어떤 주제를 어떤 순서로 다룰지)"
+}}
+
+## 토픽 종합 가이드
+- common_topics: 여러 블로그에서 공통으로 다루는 토픽을 빈도순으로 정리. frequency는 몇 개 블로그에서 언급되었는지.
+- recommended_coverage: "필수"(3개 이상에서 언급), "권장"(2개에서 언급), "선택"(1개에서만 언급)
+- filtered_competitors: 감지된 모든 경쟁사 브랜드 (새 원고 작성 시 절대 언급 금지)
+- topic_outline: 정보성 원고 구성 제안 - 경쟁사 홍보가 아닌 순수 정보 전달 관점에서"""
 
 
 def _call_gemini(prompt: str, max_retries: int = 3) -> dict[str, Any] | None:
@@ -236,6 +298,9 @@ def analyze_blog_deep(
             image_placement=result.get("image_placement", []),
             keyword_usage_style=result.get("keyword_usage_style", ""),
             key_phrases=result.get("key_phrases", []),
+            main_topics=result.get("main_topics", []),
+            competitor_brands=result.get("competitor_brands", []),
+            informational_content=result.get("informational_content", ""),
         )
     except Exception as e:
         logger.error(f"BlogDeepAnalysis 생성 오류: {e}")
@@ -292,6 +357,13 @@ def analyze_blogs_deep(
     if not agg_result:
         # 종합 분석 실패 시 개별 결과만으로 기본 종합 생성
         logger.warning("종합 분석 실패, 개별 결과로 기본 종합 생성")
+        # 개별 분석에서 토픽/경쟁사 수집
+        all_topics = []
+        all_competitors = []
+        for a in analyses:
+            all_topics.extend(a.main_topics)
+            all_competitors.extend(a.competitor_brands)
+
         return AggregatedDeepAnalysis(
             dominant_tone=analyses[0].writing_tone if analyses else "알 수 없음",
             common_structure="개별 분석 참조",
@@ -299,6 +371,9 @@ def analyze_blogs_deep(
             recommended_sections=[],
             writing_guidelines="개별 분석 참조",
             source_analyses=analyses,
+            common_topics=[{"topic": t.get("topic", ""), "frequency": 1, "recommended_coverage": "선택"} for t in all_topics],
+            filtered_competitors=list(set(all_competitors)),
+            topic_outline="개별 분석 참조",
         )
 
     try:
@@ -309,6 +384,9 @@ def analyze_blogs_deep(
             recommended_sections=agg_result.get("recommended_sections", []),
             writing_guidelines=agg_result.get("writing_guidelines", ""),
             source_analyses=analyses,
+            common_topics=agg_result.get("common_topics", []),
+            filtered_competitors=agg_result.get("filtered_competitors", []),
+            topic_outline=agg_result.get("topic_outline", ""),
         )
     except Exception as e:
         logger.error(f"AggregatedDeepAnalysis 생성 오류: {e}")
@@ -323,6 +401,9 @@ def deep_analysis_to_dict(analysis: AggregatedDeepAnalysis) -> dict[str, Any]:
         "image_strategy": analysis.image_strategy,
         "recommended_sections": analysis.recommended_sections,
         "writing_guidelines": analysis.writing_guidelines,
+        "common_topics": analysis.common_topics,
+        "filtered_competitors": analysis.filtered_competitors,
+        "topic_outline": analysis.topic_outline,
         "source_analyses": [
             {
                 "url": a.url,
@@ -336,6 +417,9 @@ def deep_analysis_to_dict(analysis: AggregatedDeepAnalysis) -> dict[str, Any]:
                 "image_placement": a.image_placement,
                 "keyword_usage_style": a.keyword_usage_style,
                 "key_phrases": a.key_phrases,
+                "main_topics": a.main_topics,
+                "competitor_brands": a.competitor_brands,
+                "informational_content": a.informational_content,
             }
             for a in analysis.source_analyses
         ],

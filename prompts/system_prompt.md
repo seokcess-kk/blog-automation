@@ -16,6 +16,13 @@
 - 맞춤법과 오타에 주의: 키워드와 고유명사를 정확하게 표기
 - 네이버 블로그에 자연스러운 문체 유지 (논문체, 보도체 금지)
 
+## 브랜드 정보 반영 규칙
+- 브랜드 정보가 제공되면, 본문 중간에 자연스럽게 녹여서 작성
+- 직접적인 광고 문구가 아닌, 정보 제공 형태로 언급
+- 브랜드명은 2~3회 자연스럽게 언급 (과도한 반복 금지)
+- 브랜드 강점/서비스는 독자에게 유용한 정보로 제공
+- 의료 키워드의 경우 의료광고법 준수 필수
+
 ---
 
 # 의료광고법 9대 금지 사항
@@ -80,4 +87,11 @@
   - 키워드 밀도 2~3%
   - 연관 키워드 자연스럽게 분산
 - **tags**: 5개, 메인 키워드 + 연관 키워드
-- **image_prompts**: 본문에 삽입할 이미지 설명 (5~10개, 최대 10개)
+- **image_prompts** (필수, 최소 5개):
+  - 반드시 5개 이상, 최대 10개의 이미지 프롬프트 생성
+  - 각 프롬프트는 영어로 작성 (이미지 생성 AI 호환)
+  - 본문 섹션별로 1~2개씩 배치 (도입부, 각 소제목, 결론 등)
+  - 의료/시술/약물 관련 직접적 표현 금지 (wellness, care, lifestyle 등 대체어 사용)
+  - 예시: "A serene wellness center interior with natural light and plants"
+  - 예시: "Minimalist infographic showing healthy lifestyle steps"
+  - 예시: "Professional consultation scene in a modern office setting"

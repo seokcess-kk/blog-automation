@@ -34,6 +34,10 @@ class PatternData(TypedDict, total=False):
     content_structure: str | dict[str, Any]
     source_titles: list[str]
     deep_analysis: dict[str, Any]
+    brand_info: dict[str, Any]
+    common_topics: list[dict[str, Any]]
+    filtered_competitors: list[str]
+    topic_outline: str
 
 
 def _load_template(filename: str) -> str:
@@ -122,6 +126,77 @@ def _format_deep_analysis(deep: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _format_topics(topics: list[dict[str, Any]]) -> str:
+    """토픽 목록을 마크다운 형식으로 변환합니다."""
+    if not topics:
+        return "분석된 공통 토픽 없음"
+
+    lines = []
+    for t in topics:
+        topic = t.get("topic", "")
+        freq = t.get("frequency", 1)
+        coverage = t.get("recommended_coverage", "선택")
+        description = t.get("description", "")
+
+        line = f"- **{topic}** [{coverage}]"
+        if description:
+            line += f": {description}"
+        line += f" (빈도: {freq}개 블로그)"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def _format_brand_info(brand: dict[str, Any]) -> str:
+    """브랜드 정보를 프롬프트용 마크다운으로 변환합니다."""
+    lines = []
+
+    # 브랜드 요약
+    summary = brand.get("summary", "")
+    if summary:
+        lines.append(f"**브랜드 요약**: {summary}")
+        lines.append("")
+
+    # 브랜드 톤
+    tone = brand.get("brand_tone", "")
+    if tone:
+        tone_desc = {
+            "professional": "전문적이고 신뢰감 있는",
+            "friendly": "친근하고 따뜻한",
+            "luxury": "고급스럽고 세련된",
+            "innovative": "혁신적이고 미래지향적인",
+            "traditional": "전통적이고 안정적인",
+        }
+        lines.append(f"**브랜드 톤**: {tone_desc.get(tone, tone)}")
+        lines.append("")
+
+    # 핵심 강점
+    strengths = brand.get("extracted_strengths", [])
+    if strengths and strengths != ["정보 없음"]:
+        lines.append("**핵심 강점/차별점**:")
+        for s in strengths[:5]:
+            lines.append(f"- {s}")
+        lines.append("")
+
+    # 주요 서비스/제품
+    services = brand.get("extracted_services", [])
+    if services and services != ["정보 없음"]:
+        lines.append("**주요 서비스/제품**:")
+        for s in services[:5]:
+            lines.append(f"- {s}")
+        lines.append("")
+
+    # 메인 페이지 정보 (간략)
+    main_page = brand.get("main_page", {})
+    if main_page.get("title"):
+        lines.append(f"**홈페이지 제목**: {main_page.get('title', '')}")
+
+    if not lines:
+        return "브랜드 정보 없음"
+
+    return "\n".join(lines)
+
+
 def build_prompt(
     keyword: str,
     region: str | None = None,
@@ -174,6 +249,25 @@ def build_prompt(
     if deep_analysis:
         deep_analysis_text = _format_deep_analysis(deep_analysis)
 
+    # 브랜드 정보 포맷팅
+    brand_info = pattern_data.get("brand_info")
+    brand_info_text = ""
+    if brand_info and isinstance(brand_info, dict):
+        brand_info_text = _format_brand_info(brand_info)
+
+    # 토픽 정보 추출 (deep_analysis 또는 직접 전달된 값)
+    common_topics = pattern_data.get("common_topics")
+    if not common_topics and deep_analysis:
+        common_topics = deep_analysis.get("common_topics", [])
+
+    filtered_competitors = pattern_data.get("filtered_competitors")
+    if not filtered_competitors and deep_analysis:
+        filtered_competitors = deep_analysis.get("filtered_competitors", [])
+
+    topic_outline = pattern_data.get("topic_outline")
+    if not topic_outline and deep_analysis:
+        topic_outline = deep_analysis.get("topic_outline", "")
+
     # 변수 치환
     variables = {
         "{{keyword}}": keyword,
@@ -188,6 +282,10 @@ def build_prompt(
         "{{content_structure}}": _format_dict(content_structure),
         "{{source_titles}}": _format_list(source_titles) if source_titles else "분석된 제목 없음",
         "{{deep_analysis}}": deep_analysis_text if deep_analysis_text else "심층 분석 데이터 없음",
+        "{{brand_info}}": brand_info_text if brand_info_text else "브랜드 정보 없음",
+        "{{common_topics}}": _format_topics(common_topics) if common_topics else "분석된 공통 토픽 없음",
+        "{{filtered_competitors}}": _format_list(filtered_competitors) if filtered_competitors else "제외할 경쟁사 없음",
+        "{{topic_outline}}": topic_outline if topic_outline else "토픽 구성 제안 없음",
     }
 
     user_prompt = pattern_template

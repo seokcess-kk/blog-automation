@@ -149,11 +149,14 @@ def cli():
 @click.option("--top-n", default=5, help="분석할 상위 블로그 개수")
 @click.option("--save-to-db", is_flag=True, help="결과를 DB에 저장")
 @click.option("--no-deep", is_flag=True, help="Gemini Flash 심층 분석 비활성화")
-def analyze(keyword: str, top_n: int, save_to_db: bool, no_deep: bool):
+@click.option("--brand-url", default=None, help="브랜드 홈페이지 URL")
+@click.option("--brand-name", default=None, help="브랜드명")
+def analyze(keyword: str, top_n: int, save_to_db: bool, no_deep: bool, brand_url: Optional[str], brand_name: Optional[str]):
     """
     키워드 상위노출 패턴을 분석합니다.
 
     네이버 검색 상위 블로그들을 분석하여 패턴을 추출합니다.
+    --brand-url 옵션을 사용하면 브랜드 홈페이지를 크롤링하여 브랜드 정보를 추출합니다.
     """
     try:
         from src.analyzer import analyze_keyword
@@ -165,9 +168,27 @@ def analyze(keyword: str, top_n: int, save_to_db: bool, no_deep: bool):
         if not result["success"]:
             output_error(result.get("error", "분석 실패"))
 
+        # 브랜드 크롤링 (옵션)
+        brand_info_dict = None
+        if brand_url:
+            from src.analyzer import crawl_brand_homepage, brand_info_to_dict
+
+            logger.info(f"브랜드 크롤링 시작: {brand_url}")
+            brand_info = crawl_brand_homepage(brand_url, brand_name=brand_name)
+            if brand_info:
+                brand_info_dict = brand_info_to_dict(brand_info)
+                result["brand_info"] = brand_info_dict
+                logger.info(f"브랜드 크롤링 완료: 강점={len(brand_info.extracted_strengths)}")
+            else:
+                logger.warning("브랜드 크롤링 실패 (계속 진행)")
+
         # DB 저장
         if save_to_db and result["success"]:
             # patterns 테이블에 저장
+            raw_data = result["pattern"].copy()
+            if brand_info_dict:
+                raw_data["brand_info"] = brand_info_dict
+
             pattern_data = {
                 "keyword": keyword,
                 "source_urls": result.get("source_urls", []),
@@ -179,7 +200,7 @@ def analyze(keyword: str, top_n: int, save_to_db: bool, no_deep: bool):
                 "related_keywords": result["pattern"].get("related_keywords"),
                 "content_structure": result["pattern"].get("content_structure"),
                 "deep_analysis": result["pattern"].get("deep_analysis"),
-                "raw_data": result["pattern"],
+                "raw_data": raw_data,
                 "analyzed_at": datetime.now().isoformat(),
             }
 
@@ -224,11 +245,34 @@ def generate(keyword_id: str, skip_images: bool, output_html: bool):
         pattern_data = patterns[0] if patterns else None
         keyword = pattern_data.get("keyword", keyword_id) if pattern_data else keyword_id
 
+        # raw_data 추출 및 JSON 파싱 안전 처리
+        raw_data = pattern_data.get("raw_data") if pattern_data else None
+        if isinstance(raw_data, str):
+            try:
+                raw_data = json.loads(raw_data)
+            except json.JSONDecodeError:
+                logger.warning("raw_data JSON 파싱 실패, 빈 딕셔너리로 대체")
+                raw_data = {}
+
+        # brand_info가 raw_data 내부에 있는 경우 추출하여 최상위로
+        if raw_data and isinstance(raw_data, dict):
+            if "brand_info" in raw_data and "brand_info" not in raw_data:
+                pass  # 이미 있음
+            # deep_analysis에서 토픽/경쟁사 정보 추출하여 최상위로
+            deep_analysis = raw_data.get("deep_analysis")
+            if deep_analysis and isinstance(deep_analysis, dict):
+                if "common_topics" not in raw_data:
+                    raw_data["common_topics"] = deep_analysis.get("common_topics", [])
+                if "filtered_competitors" not in raw_data:
+                    raw_data["filtered_competitors"] = deep_analysis.get("filtered_competitors", [])
+                if "topic_outline" not in raw_data:
+                    raw_data["topic_outline"] = deep_analysis.get("topic_outline", "")
+
         # 2. 콘텐츠 생성
         content_result = generate_content(
             keyword_id=keyword_id,
             keyword=keyword,
-            pattern_data=pattern_data.get("raw_data") if pattern_data else None,
+            pattern_data=raw_data,
             skip_images=skip_images,
         )
 

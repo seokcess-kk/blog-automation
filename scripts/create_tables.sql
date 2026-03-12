@@ -83,3 +83,26 @@ CREATE POLICY "Service role full access" ON keywords FOR ALL USING (true);
 CREATE POLICY "Service role full access" ON patterns FOR ALL USING (true);
 CREATE POLICY "Service role full access" ON drafts FOR ALL USING (true);
 CREATE POLICY "Service role full access" ON publish_logs FOR ALL USING (true);
+
+-- ============================================================
+-- 브랜드 정보 기능 마이그레이션 (2026-03-12)
+-- ============================================================
+
+-- keywords 테이블에 브랜드 관련 컬럼 추가
+ALTER TABLE keywords ADD COLUMN IF NOT EXISTS brand_url TEXT;
+ALTER TABLE keywords ADD COLUMN IF NOT EXISTS brand_name TEXT;
+ALTER TABLE keywords ADD COLUMN IF NOT EXISTS brand_info JSONB;
+
+-- brand_info JSONB 구조 예시:
+-- {
+--   "crawled_at": "2026-03-12T10:00:00Z",
+--   "main_page": { "title": "...", "text": "..." },
+--   "sub_pages": [{ "url": "/about", "title": "...", "text": "..." }],
+--   "extracted_strengths": ["강점1", "강점2"],
+--   "extracted_services": ["서비스1", "서비스2"],
+--   "brand_tone": "professional"
+-- }
+
+COMMENT ON COLUMN keywords.brand_url IS '브랜드 홈페이지 URL';
+COMMENT ON COLUMN keywords.brand_name IS '브랜드명';
+COMMENT ON COLUMN keywords.brand_info IS '크롤링된 브랜드 정보 (JSONB)';

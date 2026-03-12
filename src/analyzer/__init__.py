@@ -29,6 +29,11 @@ from src.analyzer.deep_analyzer import (
     AggregatedDeepAnalysis,
     deep_analysis_to_dict,
 )
+from src.analyzer.brand_crawler import (
+    crawl_brand_homepage,
+    BrandInfo,
+    brand_info_to_dict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +43,12 @@ __all__ = [
     "parse_blog_content",
     "extract_patterns",
     "analyze_blogs_deep",
+    "crawl_brand_homepage",
     "ParsedContent",
     "ExtractedPattern",
     "AggregatedDeepAnalysis",
+    "BrandInfo",
+    "brand_info_to_dict",
 ]
 
 
