@@ -154,7 +154,7 @@ class TestAnalyzeBlogDeep:
     """analyze_blog_deep 함수 테스트."""
 
     def test_analyze_blog_deep_success(self):
-        """단일 블로그 심층 분석 성공 테스트 (Gemini mock)."""
+        """단일 블로그 심층 분석 성공 테스트 (Claude mock)."""
         from src.analyzer.deep_analyzer import analyze_blog_deep
 
         mock_response = {
@@ -175,7 +175,7 @@ class TestAnalyzeBlogDeep:
 
         content = _make_parsed_content()
 
-        with patch("src.analyzer.deep_analyzer._call_gemini") as mock_gemini:
+        with patch("src.analyzer.deep_analyzer._call_claude") as mock_gemini:
             mock_gemini.return_value = mock_response
 
             result = analyze_blog_deep(content, "다이어트")
@@ -209,7 +209,7 @@ class TestAnalyzeBlogDeep:
         assert "[전체 본문]" in prompt
         assert "다이어트" in prompt
 
-        # Gemini mock으로 분석 성공 확인
+        # Claude mock으로 분석 성공 확인
         mock_response = {
             "writing_tone": "정보형",
             "sentence_style": "설명 위주",
@@ -222,19 +222,19 @@ class TestAnalyzeBlogDeep:
             "key_phrases": [],
         }
 
-        with patch("src.analyzer.deep_analyzer._call_gemini") as mock_gemini:
+        with patch("src.analyzer.deep_analyzer._call_claude") as mock_gemini:
             mock_gemini.return_value = mock_response
             result = analyze_blog_deep(content, "다이어트")
             assert result is not None
             assert result.writing_tone == "정보형"
 
-    def test_analyze_blog_deep_gemini_failure(self):
-        """Gemini API 실패 시 None 반환 테스트."""
+    def test_analyze_blog_deep_claude_failure(self):
+        """Claude API 실패 시 None 반환 테스트."""
         from src.analyzer.deep_analyzer import analyze_blog_deep
 
         content = _make_parsed_content()
 
-        with patch("src.analyzer.deep_analyzer._call_gemini") as mock_gemini:
+        with patch("src.analyzer.deep_analyzer._call_claude") as mock_gemini:
             mock_gemini.return_value = None
 
             result = analyze_blog_deep(content, "다이어트")
@@ -285,7 +285,7 @@ class TestAnalyzeBlogsDeep:
                 return single_response
             return agg_response
 
-        with patch("src.analyzer.deep_analyzer._call_gemini") as mock_gemini:
+        with patch("src.analyzer.deep_analyzer._call_claude") as mock_gemini:
             mock_gemini.side_effect = mock_gemini_side_effect
 
             result = analyze_blogs_deep(contents, "다이어트", delay_seconds=0)
@@ -310,7 +310,7 @@ class TestAnalyzeBlogsDeep:
 
         contents = [_make_parsed_content()]
 
-        with patch("src.analyzer.deep_analyzer._call_gemini") as mock_gemini:
+        with patch("src.analyzer.deep_analyzer._call_claude") as mock_gemini:
             mock_gemini.return_value = None
 
             result = analyze_blogs_deep(contents, "다이어트", delay_seconds=0)
@@ -344,7 +344,7 @@ class TestAnalyzeBlogsDeep:
                 return single_response
             return None  # 종합 분석 실패
 
-        with patch("src.analyzer.deep_analyzer._call_gemini") as mock_gemini:
+        with patch("src.analyzer.deep_analyzer._call_claude") as mock_gemini:
             mock_gemini.side_effect = mock_side_effect
 
             result = analyze_blogs_deep(contents, "다이어트", delay_seconds=0)

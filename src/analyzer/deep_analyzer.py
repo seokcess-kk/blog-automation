@@ -1,10 +1,11 @@
 """
-Gemini Flash 기반 심층 분석 모듈.
+Claude Haiku 기반 심층 분석 모듈.
 
 상위노출 블로그의 본문 내용, 문체, 전개 방식, 이미지 배치 전략을
-Gemini 2.0 Flash로 분석하여 콘텐츠 생성 프롬프트의 품질을 높입니다.
+Claude Haiku로 분석하여 콘텐츠 생성 프롬프트의 품질을 높입니다.
 
-비용: 블로그당 ~3000 입력 + ~1000 출력 토큰 x 6회 = ~$0.004/키워드
+비용: 블로그당 ~3000 입력 + ~1000 출력 토큰 x 6회
+- Claude Haiku: ~$0.006/키워드 (한국어 분석 정확도 향상, API 통일)
 """
 
 import json
@@ -217,45 +218,54 @@ def _build_aggregation_prompt(analyses: list[BlogDeepAnalysis], keyword: str) ->
 - topic_outline: 정보성 원고 구성 제안 - 경쟁사 홍보가 아닌 순수 정보 전달 관점에서"""
 
 
-def _call_gemini(prompt: str, max_retries: int = 3) -> dict[str, Any] | None:
-    """Gemini API를 호출하여 JSON 응답을 파싱합니다. 429 시 exponential backoff."""
-    if not config.GOOGLE_AI_API_KEY:
-        logger.warning("GOOGLE_AI_API_KEY가 설정되지 않았습니다.")
+def _call_claude(prompt: str, max_retries: int = 3) -> dict[str, Any] | None:
+    """Claude Haiku API를 호출하여 JSON 응답을 파싱합니다."""
+    if not config.ANTHROPIC_API_KEY:
+        logger.warning("ANTHROPIC_API_KEY가 설정되지 않았습니다.")
         return None
+
+    import anthropic
 
     backoff_seconds = [10, 30, 60]
 
     for attempt in range(max_retries):
         try:
-            from google import genai
-            from google.genai import types
+            client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
 
-            client = genai.Client(api_key=config.GOOGLE_AI_API_KEY)
-            response = client.models.generate_content(
-                model=config.GEMINI_ANALYSIS_MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["TEXT"],
-                    response_mime_type="application/json",
-                ),
+            response = client.messages.create(
+                model=config.CLAUDE_HAIKU_MODEL,
+                max_tokens=config.CLAUDE_ANALYSIS_MAX_TOKENS,
+                messages=[
+                    {"role": "user", "content": prompt + "\n\nJSON 형식으로만 응답해주세요."}
+                ],
             )
 
-            if not response or not response.text:
-                logger.warning("Gemini 응답이 비어있습니다.")
+            if not response.content:
+                logger.warning("Claude 응답이 비어있습니다.")
                 return None
 
-            return json.loads(response.text)
+            # JSON 추출 (```json ... ``` 또는 순수 JSON)
+            text = response.content[0].text
+            if "```json" in text:
+                text = text.split("```json")[1].split("```")[0].strip()
+            elif "```" in text:
+                text = text.split("```")[1].split("```")[0].strip()
+
+            return json.loads(text)
 
         except json.JSONDecodeError as e:
-            logger.error(f"Gemini JSON 파싱 오류: {e}")
+            logger.error(f"Claude JSON 파싱 오류: {e}")
             return None
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1:
+        except anthropic.RateLimitError:
+            if attempt < max_retries - 1:
                 wait = backoff_seconds[attempt]
-                logger.warning(f"Gemini 429 rate limit, {wait}초 후 재시도 ({attempt + 1}/{max_retries})...")
+                logger.warning(f"Claude rate limit, {wait}초 후 재시도 ({attempt + 1}/{max_retries})...")
                 time.sleep(wait)
                 continue
-            logger.error(f"Gemini API 호출 오류: {e}")
+            logger.error("Claude rate limit 초과")
+            return None
+        except Exception as e:
+            logger.error(f"Claude API 호출 오류: {e}")
             return None
 
     return None
@@ -266,7 +276,7 @@ def analyze_blog_deep(
     keyword: str,
 ) -> BlogDeepAnalysis | None:
     """
-    단일 블로그를 Gemini Flash로 심층 분석합니다.
+    단일 블로그를 Claude Haiku로 심층 분석합니다.
 
     Args:
         parsed_content: 파싱된 블로그 콘텐츠
@@ -280,7 +290,7 @@ def analyze_blog_deep(
         return None
 
     prompt = _build_single_blog_prompt(parsed_content, keyword)
-    result = _call_gemini(prompt)
+    result = _call_claude(prompt)
 
     if not result:
         return None
@@ -352,7 +362,7 @@ def analyze_blogs_deep(
     # 종합 분석
     logger.info("종합 분석 중...")
     agg_prompt = _build_aggregation_prompt(analyses, keyword)
-    agg_result = _call_gemini(agg_prompt)
+    agg_result = _call_claude(agg_prompt)
 
     if not agg_result:
         # 종합 분석 실패 시 개별 결과만으로 기본 종합 생성
