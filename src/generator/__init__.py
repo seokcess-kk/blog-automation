@@ -10,8 +10,9 @@
 """
 
 import logging
-import re
 from typing import Any, TypedDict
+
+from bs4 import BeautifulSoup
 
 from src.generator.prompt_builder import build_prompt, PatternData
 from src.generator.content_generator import (
@@ -35,62 +36,83 @@ __all__ = [
     "ContentGenerationError",
     "ImageGenerationError",
     "PatternData",
+    "_insert_images_into_html",
 ]
 
 
 def _insert_images_into_html(body_html: str, images: list[GeneratedImage]) -> str:
     """
-    생성된 이미지를 본문 HTML의 h2 섹션 사이에 균등 삽입합니다.
+    생성된 이미지를 본문 HTML의 블록 요소 사이에 안전하게 삽입합니다.
 
-    h2 태그 위치를 기준으로 이미지를 분산 배치합니다.
-    첫 번째 이미지는 첫 h2 앞, 나머지는 h2 섹션 사이에 삽입됩니다.
+    삽입 규칙:
+    1. h2 태그 직전 (단락 경계)에 삽입
+    2. h2가 부족하면 p 태그 사이에 균등 분산
+    3. 절대로 인라인(문장 중간)에 삽입하지 않음
     """
     if not images:
         return body_html
 
-    # h2 태그 위치 찾기
-    h2_positions = [m.start() for m in re.finditer(r"<h2[^>]*>", body_html)]
+    soup = BeautifulSoup(body_html, "html.parser")
 
-    if not h2_positions:
-        # h2가 없으면 본문 끝에 모두 추가
-        img_html = "\n".join(_make_img_tag(img) for img in images)
-        return body_html + img_html
+    # 블록 레벨 요소 수집 (h2, h3, p, ul, ol, div 등)
+    block_elements = soup.find_all(['h2', 'h3', 'p', 'ul', 'ol', 'div', 'blockquote'])
 
-    # 삽입 지점 계산: h2 사이에 이미지를 균등 분배
-    # 첫 이미지는 첫 h2 앞, 나머지는 h2 앞에 삽입
-    insert_points: list[int] = []
-    if len(images) <= len(h2_positions):
-        # 이미지 수 <= h2 수: 균등 간격으로 배치
-        step = max(1, len(h2_positions) // len(images))
-        for i in range(len(images)):
-            idx = min(i * step, len(h2_positions) - 1)
-            insert_points.append(h2_positions[idx])
-    else:
-        # 이미지 수 > h2 수: 각 h2 앞에 하나씩, 남은 건 마지막 h2 뒤에 분산 배치
-        insert_points = list(h2_positions)
-        remaining = len(images) - len(h2_positions)
-        last_h2_pos = h2_positions[-1]
-        body_after = len(body_html) - last_h2_pos
-        spacing = body_after // (remaining + 1) if remaining > 0 else 0
-        for j in range(1, remaining + 1):
-            insert_points.append(last_h2_pos + spacing * j)
+    if not block_elements:
+        # 블록 요소가 없으면 맨 뒤에 추가
+        for img in images:
+            img_tag = _create_image_soup(img)
+            soup.append(img_tag)
+        return str(soup)
 
-    # 뒤에서부터 삽입 (위치가 밀리지 않도록)
-    paired = list(zip(insert_points, images))
-    paired.sort(key=lambda x: x[0], reverse=True)
+    # h2 태그 위치 수집
+    h2_elements = soup.find_all('h2')
 
-    for pos, img in paired:
-        img_tag = _make_img_tag(img)
-        body_html = body_html[:pos] + img_tag + body_html[pos:]
+    # 삽입 지점 결정: h2 직전 또는 p 태그 사이
+    insert_positions: list[tuple[str, Any]] = []
 
-    return body_html
+    if h2_elements:
+        # h2가 있으면 h2 직전에 삽입
+        for h2 in h2_elements:
+            insert_positions.append(('before', h2))
+
+    # 이미지가 삽입 지점보다 많으면 p 태그 사이에 분산
+    if len(images) > len(insert_positions):
+        p_elements = [el for el in block_elements if el.name == 'p']
+        remaining = len(images) - len(insert_positions)
+
+        if p_elements and remaining > 0:
+            step = max(1, len(p_elements) // (remaining + 1))
+            for i in range(remaining):
+                idx = min((i + 1) * step, len(p_elements) - 1)
+                insert_positions.append(('after', p_elements[idx]))
+
+    # 삽입 지점이 부족하면 마지막 블록 요소 뒤에 추가
+    while len(insert_positions) < len(images):
+        insert_positions.append(('after', block_elements[-1]))
+
+    # 이미지 삽입 (역순으로 처리하여 DOM 변경 시 위치 영향 최소화)
+    for i in range(len(images) - 1, -1, -1):
+        img = images[i]
+        if i < len(insert_positions):
+            position_type, element = insert_positions[i]
+            img_tag = _create_image_soup(img)
+
+            if position_type == 'before':
+                element.insert_before(img_tag)
+            else:
+                element.insert_after(img_tag)
+
+    return str(soup)
 
 
-def _make_img_tag(img: GeneratedImage) -> str:
-    """이미지 HTML 태그를 생성합니다."""
+def _create_image_soup(img: GeneratedImage):
+    """BeautifulSoup용 이미지 태그를 생성합니다."""
     filename = img.get("filename", "")
     alt_text = (img.get("prompt", "") or "")[:100]
-    return f'\n<div class="se-image"><img src="../images/{filename}" alt="{alt_text}"></div>\n'
+    # alt 텍스트에서 HTML 특수문자 이스케이프
+    alt_text = alt_text.replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;')
+    img_html = f'<div class="se-image"><img src="../images/{filename}" alt="{alt_text}"/></div>'
+    return BeautifulSoup(img_html, "html.parser")
 
 
 class ContentResult(TypedDict):

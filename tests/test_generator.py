@@ -421,3 +421,139 @@ class TestBrandInfoFormatting:
         # 의료진 포함 확인
         assert "전문가/의료진" in result
         assert "홍길동" in result
+
+
+class TestInsertImagesIntoHtml:
+    """_insert_images_into_html 함수 테스트."""
+
+    def test_insert_images_between_paragraphs(self):
+        """이미지가 단락 사이에 삽입되는지 테스트."""
+        from src.generator import _insert_images_into_html
+
+        body = "<p>문장1</p><p>문장2</p><h2>제목</h2><p>문장3</p>"
+        images = [{"filename": "test.jpg", "prompt": "test"}]
+
+        result = _insert_images_into_html(body, images)
+
+        # h2 직전에 이미지가 삽입되어야 함
+        assert '<div class="se-image">' in result
+        # 이미지 태그 존재 확인 (속성 순서는 BeautifulSoup에 의해 결정됨)
+        assert 'src="../images/test.jpg"' in result
+        # 문장 중간에 삽입되지 않아야 함 (p 태그 안에 이미지가 없어야 함)
+        assert "<p>문장1<div" not in result
+        assert "<p>문장2<div" not in result
+        assert "<p>문장3<div" not in result
+
+    def test_insert_images_not_in_middle_of_sentence(self):
+        """이미지가 문장 중간에 삽입되지 않는지 테스트."""
+        from src.generator import _insert_images_into_html
+
+        body = "<p>이것은 긴 문장입니다. 더 많은 내용이 있습니다.</p><h2>제목</h2>"
+        images = [{"filename": "test.jpg", "prompt": "test"}]
+
+        result = _insert_images_into_html(body, images)
+
+        # p 태그 안에 이미지가 삽입되지 않아야 함
+        assert "<p>이것은 긴 문장입니다. 더 많은 내용이 있습니다.</p>" in result
+
+    def test_insert_multiple_images_distributed(self):
+        """여러 이미지가 균등 분산되는지 테스트."""
+        from src.generator import _insert_images_into_html
+
+        body = "<p>문장1</p><h2>제목1</h2><p>문장2</p><p>문장3</p><h2>제목2</h2><p>문장4</p>"
+        images = [
+            {"filename": "1.jpg", "prompt": "img1"},
+            {"filename": "2.jpg", "prompt": "img2"},
+            {"filename": "3.jpg", "prompt": "img3"},
+        ]
+
+        result = _insert_images_into_html(body, images)
+
+        # 3개 이미지가 모두 삽입되어야 함
+        assert result.count("se-image") == 3
+        # 각 이미지가 존재해야 함
+        assert "1.jpg" in result
+        assert "2.jpg" in result
+        assert "3.jpg" in result
+
+    def test_insert_images_empty_list(self):
+        """이미지 리스트가 비어있으면 원본 HTML이 반환되는지 테스트."""
+        from src.generator import _insert_images_into_html
+
+        body = "<p>문장1</p><h2>제목</h2>"
+        images = []
+
+        result = _insert_images_into_html(body, images)
+
+        assert result == body
+
+    def test_insert_images_no_block_elements(self):
+        """블록 요소가 없으면 맨 뒤에 추가되는지 테스트."""
+        from src.generator import _insert_images_into_html
+
+        body = "단순 텍스트"
+        images = [{"filename": "test.jpg", "prompt": "test"}]
+
+        result = _insert_images_into_html(body, images)
+
+        # 이미지가 추가되어야 함
+        assert "se-image" in result
+        assert "test.jpg" in result
+
+    def test_insert_images_no_h2_uses_p_tags(self):
+        """h2가 없으면 p 태그 사이에 삽입되는지 테스트."""
+        from src.generator import _insert_images_into_html
+
+        body = "<p>문장1</p><p>문장2</p><p>문장3</p>"
+        images = [{"filename": "test.jpg", "prompt": "test"}]
+
+        result = _insert_images_into_html(body, images)
+
+        # 이미지가 삽입되어야 함
+        assert "se-image" in result
+        # p 태그 안에 삽입되지 않아야 함
+        assert "<p>문장<div" not in result
+
+    def test_insert_images_more_than_h2_count(self):
+        """이미지가 h2보다 많을 때 p 태그에 분산되는지 테스트."""
+        from src.generator import _insert_images_into_html
+
+        body = "<p>문장1</p><h2>제목1</h2><p>문장2</p><p>문장3</p><p>문장4</p>"
+        images = [
+            {"filename": "1.jpg", "prompt": "img1"},
+            {"filename": "2.jpg", "prompt": "img2"},
+            {"filename": "3.jpg", "prompt": "img3"},
+        ]
+
+        result = _insert_images_into_html(body, images)
+
+        # 3개 이미지가 모두 삽입되어야 함
+        assert result.count("se-image") == 3
+
+    def test_insert_images_preserves_html_structure(self):
+        """HTML 구조가 유지되는지 테스트."""
+        from src.generator import _insert_images_into_html
+
+        body = "<div><p>내용</p></div><h2>제목</h2><ul><li>항목1</li></ul>"
+        images = [{"filename": "test.jpg", "prompt": "test"}]
+
+        result = _insert_images_into_html(body, images)
+
+        # 기존 HTML 구조가 유지되어야 함
+        assert "<ul>" in result
+        assert "<li>항목1</li>" in result
+        assert "</ul>" in result
+
+    def test_insert_images_alt_text_escaped(self):
+        """alt 텍스트의 특수문자가 이스케이프되는지 테스트."""
+        from src.generator import _insert_images_into_html
+
+        body = "<p>문장</p><h2>제목</h2>"
+        images = [{"filename": "test.jpg", "prompt": 'Test "with" <special> chars'}]
+
+        result = _insert_images_into_html(body, images)
+
+        # < > 특수문자가 이스케이프되어야 함
+        assert '&lt;special&gt;' in result
+        # 이미지 태그가 정상적으로 삽입되어야 함
+        assert 'test.jpg' in result
