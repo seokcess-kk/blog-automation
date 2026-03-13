@@ -121,14 +121,22 @@ class BrandInfo:
 
 ### Claude Haiku 심층 분석
 
-상위노출 블로그 5개를 Claude Haiku로 분석하여 문체, 구조, 이미지 배치 전략 추출.
+상위노출 블로그 10개를 Claude Haiku로 분석하여 문체, 구조, 이미지 배치 전략 추출.
 (한국어 분석 정확도 향상 + API 통일)
 
 ```python
 # src/analyzer/deep_analyzer.py
 # 분석 항목: dominant_tone, common_structure, image_strategy,
-#           recommended_sections, writing_guidelines, common_topics
+#           recommended_sections, writing_guidelines, common_topics,
+#           paragraph_analysis, content_type (정보형/후기형/비교형/리스트형/혼합형)
 ```
+
+**콘텐츠 타입 분류 체계**:
+- **정보형**: 순수 정보 전달 (원리, 방법, 가이드)
+- **후기형**: 경험담, 리뷰, 체험기
+- **비교형**: 여러 옵션 비교 분석
+- **리스트형**: TOP N, 모음집, 목록
+- **혼합형**: 정보+후기 등 복합
 
 ---
 
@@ -233,6 +241,8 @@ BLOG_B_PASSWORD=
 SLACK_WEBHOOK_URL=
 PUBLISH_MODE=conservative       # conservative|normal|aggressive
 HEADLESS=false                  # 봇 탐지 우회를 위해 기본 false
+DEFAULT_TOP_N=10                # 분석할 상위 블로그 개수 (기본값: 10)
+DEEP_ANALYSIS_MAX_WORKERS=3     # 심층 분석 병렬 워커 수 (1=순차, 2+=병렬)
 ```
 
 ---

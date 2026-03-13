@@ -4,13 +4,14 @@ Claude Haiku 기반 심층 분석 모듈.
 상위노출 블로그의 본문 내용, 문체, 전개 방식, 이미지 배치 전략을
 Claude Haiku로 분석하여 콘텐츠 생성 프롬프트의 품질을 높입니다.
 
-비용: 블로그당 ~3000 입력 + ~1000 출력 토큰 x 6회
-- Claude Haiku: ~$0.006/키워드 (한국어 분석 정확도 향상, API 통일)
+비용: 블로그당 ~3000 입력 + ~1000 출력 토큰 x 11회 (개별 10개 + 종합 1개)
+- Claude Haiku: ~$0.012/키워드 (한국어 분석 정확도 향상, API 통일)
 """
 
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -54,6 +55,9 @@ class BlogDeepAnalysis:
 
     key_phrases: list[str]
     """인상적인 표현 5~10개"""
+
+    paragraph_analysis: dict[str, Any] = field(default_factory=dict)
+    """문단 구성 분석: {avg_paragraph_chars, paragraph_count, structure_pattern}"""
 
     main_topics: list[dict[str, str]] = field(default_factory=list)
     """[{"topic": "토픽명", "description": "설명"}] - 이 글이 다루는 주요 주제/토픽"""
@@ -139,7 +143,12 @@ def _build_single_blog_prompt(content: ParsedContent, keyword: str) -> str:
     "section_flow": [
         {{"heading": "섹션명", "role": "도입/본론/결론/부가정보", "char_ratio": 0.2}}
     ],
-    "content_type": "콘텐츠 유형 (리뷰형/정보형/비교형/가이드형/경험담 등)",
+    "content_type": "콘텐츠 유형 (정보형/후기형/비교형/리스트형/혼합형 중 택1)",
+    "paragraph_analysis": {{
+        "avg_paragraph_chars": 150,
+        "paragraph_count": 12,
+        "structure_pattern": "도입(짧음)-본론(길음)-결론(짧음)"
+    }},
     "image_placement": [
         {{
             "position": "위치 설명 (도입부/섹션명 뒤/마무리 등)",
@@ -158,6 +167,18 @@ def _build_single_blog_prompt(content: ParsedContent, keyword: str) -> str:
     "competitor_brands": ["글에서 언급된 특정 브랜드/업체/한의원/클리닉/병원 이름 (있으면)"],
     "informational_content": "특정 브랜드 홍보 내용을 제외한 순수 정보성 내용 요약 (1~2문장)"
 }}
+
+## 콘텐츠 타입 분류 기준
+- **정보형**: 순수 정보 전달 (원리, 방법, 가이드, 지식 공유)
+- **후기형**: 경험담, 리뷰, 체험기, 사용 후기
+- **비교형**: 여러 옵션/제품/서비스 비교 분석
+- **리스트형**: TOP N, 모음집, 목록 정리
+- **혼합형**: 정보+후기 등 2가지 이상 복합
+
+## 문단 분석 가이드
+- avg_paragraph_chars: 문단 평균 글자 수 (짧은 문단: 50-100자, 보통: 100-200자, 긴 문단: 200자 이상)
+- paragraph_count: 총 문단 수
+- structure_pattern: 문단 길이 변화 패턴 (예: "도입(짧음)-본론(길음)-결론(짧음)", "균일한 길이", "점진적 증가")
 
 ## 토픽 분석 가이드
 - main_topics: 이 글이 다루는 핵심 주제들 (예: "다이어트 원리", "체질 분석", "시술 과정", "효과와 주의사항" 등)
@@ -362,6 +383,7 @@ def analyze_blog_deep(
             image_placement=result.get("image_placement", []),
             keyword_usage_style=result.get("keyword_usage_style", ""),
             key_phrases=result.get("key_phrases", []),
+            paragraph_analysis=result.get("paragraph_analysis", {}),
             main_topics=result.get("main_topics", []),
             competitor_brands=result.get("competitor_brands", []),
             informational_content=result.get("informational_content", ""),
@@ -375,6 +397,7 @@ def analyze_blogs_deep(
     contents: list[ParsedContent],
     keyword: str,
     delay_seconds: float = 2.0,
+    max_workers: int | None = None,
 ) -> AggregatedDeepAnalysis | None:
     """
     여러 블로그를 심층 분석하고 종합 결과를 반환합니다.
@@ -382,7 +405,9 @@ def analyze_blogs_deep(
     Args:
         contents: 파싱된 블로그 콘텐츠 목록
         keyword: 분석 대상 키워드
-        delay_seconds: API 호출 간 대기 시간 (초)
+        delay_seconds: API 호출 간 대기 시간 (초, 순차 처리 시에만 사용)
+        max_workers: 병렬 처리 워커 수 (기본값: config.DEEP_ANALYSIS_MAX_WORKERS)
+                     1이면 순차 처리, 2 이상이면 병렬 처리
 
     Returns:
         AggregatedDeepAnalysis 또는 None (실패 시)
@@ -391,21 +416,55 @@ def analyze_blogs_deep(
         logger.warning("심층 분석할 콘텐츠가 없습니다.")
         return None
 
-    logger.info(f"심층 분석 시작: {len(contents)}개 블로그, 키워드='{keyword}'")
+    if max_workers is None:
+        max_workers = config.DEEP_ANALYSIS_MAX_WORKERS
+
+    logger.info(f"심층 분석 시작: {len(contents)}개 블로그, 키워드='{keyword}', workers={max_workers}")
 
     # 개별 블로그 분석
     analyses: list[BlogDeepAnalysis] = []
-    for i, content in enumerate(contents):
-        logger.info(f"  블로그 {i+1}/{len(contents)} 분석 중: {content.title[:30]}...")
-        analysis = analyze_blog_deep(content, keyword)
-        if analysis:
-            analyses.append(analysis)
-        else:
-            logger.warning(f"  블로그 {i+1} 분석 실패: {content.url}")
 
-        # API rate limit 대기 (마지막 호출 제외)
-        if i < len(contents) - 1:
-            time.sleep(delay_seconds)
+    if max_workers <= 1:
+        # 순차 처리 (기존 방식)
+        for i, content in enumerate(contents):
+            logger.info(f"  블로그 {i+1}/{len(contents)} 분석 중: {content.title[:30]}...")
+            analysis = analyze_blog_deep(content, keyword)
+            if analysis:
+                analyses.append(analysis)
+            else:
+                logger.warning(f"  블로그 {i+1} 분석 실패: {content.url}")
+
+            # API rate limit 대기 (마지막 호출 제외)
+            if i < len(contents) - 1:
+                time.sleep(delay_seconds)
+    else:
+        # 병렬 처리
+        def _analyze_with_index(args: tuple[int, ParsedContent]) -> tuple[int, BlogDeepAnalysis | None]:
+            idx, content = args
+            logger.info(f"  블로그 {idx+1}/{len(contents)} 분석 중: {content.title[:30]}...")
+            return idx, analyze_blog_deep(content, keyword)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_analyze_with_index, (i, content)): i
+                for i, content in enumerate(contents)
+            }
+
+            results: list[tuple[int, BlogDeepAnalysis | None]] = []
+            for future in as_completed(futures):
+                try:
+                    idx, analysis = future.result()
+                    results.append((idx, analysis))
+                    if not analysis:
+                        logger.warning(f"  블로그 {idx+1} 분석 실패: {contents[idx].url}")
+                except Exception as e:
+                    idx = futures[future]
+                    logger.error(f"  블로그 {idx+1} 분석 예외: {e}")
+                    results.append((idx, None))
+
+            # 원래 순서대로 정렬하여 결과 수집
+            results.sort(key=lambda x: x[0])
+            analyses = [r[1] for r in results if r[1] is not None]
 
     if not analyses:
         logger.warning("모든 블로그 심층 분석에 실패했습니다.")
@@ -481,6 +540,7 @@ def deep_analysis_to_dict(analysis: AggregatedDeepAnalysis) -> dict[str, Any]:
                 "image_placement": a.image_placement,
                 "keyword_usage_style": a.keyword_usage_style,
                 "key_phrases": a.key_phrases,
+                "paragraph_analysis": a.paragraph_analysis,
                 "main_topics": a.main_topics,
                 "competitor_brands": a.competitor_brands,
                 "informational_content": a.informational_content,

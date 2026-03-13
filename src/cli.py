@@ -19,7 +19,7 @@ from typing import Any, Optional
 
 import click
 
-from src.config import SUPABASE_URL, SUPABASE_KEY
+from src.config import SUPABASE_URL, SUPABASE_KEY, DEFAULT_TOP_N
 
 # 로깅 설정
 logging.basicConfig(
@@ -149,9 +149,9 @@ def cli():
 
 @cli.command()
 @click.option("--keyword", required=True, help="분석할 키워드")
-@click.option("--top-n", default=5, help="분석할 상위 블로그 개수")
+@click.option("--top-n", default=DEFAULT_TOP_N, help="분석할 상위 블로그 개수 (기본값: 10)")
 @click.option("--save-to-db", is_flag=True, help="결과를 DB에 저장")
-@click.option("--no-deep", is_flag=True, help="Gemini Flash 심층 분석 비활성화")
+@click.option("--no-deep", is_flag=True, help="Claude Haiku 심층 분석 비활성화")
 @click.option("--brand-url", default=None, help="브랜드 홈페이지 URL")
 @click.option("--brand-name", default=None, help="브랜드명")
 @click.option("--brand-location", default=None, help="브랜드 위치 정보 (예: '정발산역 인근, 낙원프라자 4층')")

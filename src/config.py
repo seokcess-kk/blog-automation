@@ -96,6 +96,10 @@ GEMINI_ANALYSIS_MODEL: str = "gemini-2.5-flash"
 CLAUDE_HAIKU_MODEL: str = "claude-haiku-4-5-20251001"
 CLAUDE_ANALYSIS_MAX_TOKENS: int = 4096
 
+# 분석 기본 설정
+DEFAULT_TOP_N: int = int(os.getenv("DEFAULT_TOP_N", "10"))  # 분석할 상위 블로그 개수
+DEEP_ANALYSIS_MAX_WORKERS: int = int(os.getenv("DEEP_ANALYSIS_MAX_WORKERS", "3"))  # 병렬 분석 워커 수
+
 # 출력 디렉토리
 OUTPUT_DIR = PROJECT_ROOT / "output"
 IMAGES_DIR = OUTPUT_DIR / "images"

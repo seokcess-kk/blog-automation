@@ -5,7 +5,7 @@ analyzer - 네이버 블로그 상위노출 패턴 분석 모듈
 상위노출에 필요한 패턴을 추출합니다.
 
 파이프라인:
-1. serp_collector: 네이버 검색 → 상위 5개 URL 수집
+1. serp_collector: 네이버 검색 → 상위 N개 URL 수집 (기본값: 10개)
 2. content_parser: 각 URL → 본문 구조 분석
 3. pattern_extractor: 분석 결과 → 통합 패턴 추출
 """
@@ -34,6 +34,7 @@ from src.analyzer.brand_crawler import (
     BrandInfo,
     brand_info_to_dict,
 )
+from src import config
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ __all__ = [
 
 def analyze_keyword(
     keyword: str,
-    top_n: int = 5,
+    top_n: int | None = None,
     include_raw_data: bool = False,
     no_deep: bool = False,
 ) -> dict[str, Any]:
@@ -68,7 +69,7 @@ def analyze_keyword(
 
     Args:
         keyword: 분석할 키워드
-        top_n: 분석할 상위 블로그 개수 (기본값: 5)
+        top_n: 분석할 상위 블로그 개수 (기본값: config.DEFAULT_TOP_N)
         include_raw_data: 원본 분석 데이터 포함 여부
         no_deep: Gemini Flash 심층 분석 비활성화 (기본값: False)
 
@@ -90,6 +91,10 @@ def analyze_keyword(
         ...     print(f"평균 글자수: {result['pattern']['avg_char_count']}")
         ...     print(f"평균 이미지: {result['pattern']['avg_image_count']}")
     """
+    # top_n 기본값 적용
+    if top_n is None:
+        top_n = config.DEFAULT_TOP_N
+
     logger.info(f"키워드 분석 시작: '{keyword}' (top_n={top_n})")
 
     result: dict[str, Any] = {
@@ -136,7 +141,7 @@ def analyze_keyword(
         # Step 2.5: 심층 분석 (Gemini Flash)
         deep_analysis_dict = None
         if not no_deep:
-            logger.info("Step 2.5: 심층 분석 (Gemini Flash)...")
+            logger.info("Step 2.5: 심층 분석 (Claude Haiku)...")
             try:
                 deep_result = analyze_blogs_deep(parsed_contents, keyword)
                 if deep_result:
