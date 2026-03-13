@@ -147,7 +147,11 @@ def _build_single_blog_prompt(content: ParsedContent, keyword: str) -> str:
 ## 토픽 분석 가이드
 - main_topics: 이 글이 다루는 핵심 주제들 (예: "다이어트 원리", "체질 분석", "시술 과정", "효과와 주의사항" 등)
 - competitor_brands: 특정 업체/브랜드명이 있다면 추출 (일반 명사인 "한의원", "병원"은 제외, "XX한의원", "YY클리닉" 같은 고유명사만)
-- informational_content: 브랜드 광고가 아닌, 독자에게 유용한 정보 부분만 요약"""
+- informational_content: 브랜드 광고가 아닌, 독자에게 유용한 정보 부분만 요약
+
+## 중요 참고사항
+우리는 이 분석 결과를 바탕으로 **정보성 원고만 생성**합니다 (후기/경험담/리뷰 금지).
+따라서 분석 시 원문이 후기/경험담이더라도, 그 안에서 **정보성으로 활용 가능한 토픽과 문체**를 중심으로 추출해주세요."""
 
 
 def _build_aggregation_prompt(analyses: list[BlogDeepAnalysis], keyword: str) -> str:
@@ -215,7 +219,15 @@ def _build_aggregation_prompt(analyses: list[BlogDeepAnalysis], keyword: str) ->
 - common_topics: 여러 블로그에서 공통으로 다루는 토픽을 빈도순으로 정리. frequency는 몇 개 블로그에서 언급되었는지.
 - recommended_coverage: "필수"(3개 이상에서 언급), "권장"(2개에서 언급), "선택"(1개에서만 언급)
 - filtered_competitors: 감지된 모든 경쟁사 브랜드 (새 원고 작성 시 절대 언급 금지)
-- topic_outline: 정보성 원고 구성 제안 - 경쟁사 홍보가 아닌 순수 정보 전달 관점에서"""
+- topic_outline: 정보성 원고 구성 제안 - 경쟁사 홍보가 아닌 순수 정보 전달 관점에서
+
+## 정보성 원칙 (반드시 준수)
+우리는 **정보 제공형 원고만 생성**합니다. 분석 대상이 후기/리뷰/경험담이더라도:
+- writing_guidelines에서 "후기 작성", "경험담 공유", "리뷰 형식" 등을 권장하지 말 것
+- recommended_sections에서 "후기", "체험", "경험" 섹션을 제안하지 말 것
+- topic_outline은 반드시 정보 전달 관점으로 구성 (교육, 원리, 가이드, 비교 분석 등)
+- closing_strategy에서 CTA(방문 유도)를 권장하지 말 것
+- common_topics에서 "경험 공유", "후기 예고" 등 비정보성 토픽은 제외할 것"""
 
 
 def _call_claude(prompt: str, max_retries: int = 3) -> dict[str, Any] | None:

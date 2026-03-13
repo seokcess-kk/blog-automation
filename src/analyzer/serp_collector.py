@@ -111,7 +111,7 @@ def _collect_via_scraping(keyword: str, count: int) -> list[str]:
             page = fetcher.fetch(search_url)
 
             if page is None or page.status != 200:
-                logger.warning(f"페이지 로드 실패: status={getattr(page, 'status', 'None')}")
+                logger.warning(f"페이지 로드 실패: status={getattr(page, 'status', None)}")
                 time.sleep(RETRY_DELAY_SECONDS * attempt)
                 continue
 

@@ -101,9 +101,16 @@ def random_mouse_movement(page: "Page") -> None:
     target_x = random.randint(margin, viewport["width"] - margin)
     target_y = random.randint(margin, viewport["height"] - margin)
 
-    # 베지어 커브를 위한 제어점
-    control_x = random.randint(min(current_x, target_x), max(current_x, target_x))
-    control_y = random.randint(min(current_y, target_y), max(current_y, target_y))
+    # 베지어 커브를 위한 제어점 (±30% 범위 확장으로 자연스러운 곡선)
+    dx = abs(target_x - current_x)
+    dy = abs(target_y - current_y)
+    offset_x = int(dx * 0.3)
+    offset_y = int(dy * 0.3)
+    control_x = random.randint(min(current_x, target_x) - offset_x, max(current_x, target_x) + offset_x)
+    control_y = random.randint(min(current_y, target_y) - offset_y, max(current_y, target_y) + offset_y)
+    # 화면 범위 내로 클램프
+    control_x = max(0, min(control_x, viewport["width"]))
+    control_y = max(0, min(control_y, viewport["height"]))
 
     # 10~20 단계로 이동
     steps = random.randint(10, 20)

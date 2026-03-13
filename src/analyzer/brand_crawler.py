@@ -72,6 +72,9 @@ class BrandInfo:
     brand_tone: str
     """브랜드 톤: 'professional', 'friendly', 'luxury' 등"""
 
+    brand_name: str = ""
+    """브랜드명 (홈페이지 title에서 자동 추출 또는 수동 입력)"""
+
     summary: str = ""
     """브랜드 요약 (1~2문장)"""
 
@@ -151,8 +154,12 @@ def crawl_brand_homepage(
         extracted = _extract_brand_strengths(main_page, sub_pages, brand_name)
 
         # 4. BrandInfo 조립
+        # 브랜드명: 수동 입력 > Gemini 추출 > 홈페이지 title 자동 추출
+        resolved_brand_name = brand_name or extracted.get("brand_name", "") or main_page.title.split("|")[0].split("-")[0].strip()
+
         brand_info = BrandInfo(
             crawled_at=datetime.now(timezone.utc).isoformat(),
+            brand_name=resolved_brand_name,
             main_page={
                 "title": main_page.title,
                 "text": main_page.text[:2000],
@@ -212,7 +219,7 @@ def _fetch_page_with_obj(url: str, page_type: str, timeout: int) -> tuple[PageCo
 
         if page is None or page.status != 200:
             logger.warning(
-                f"페이지 로드 실패: {url}, status={getattr(page, 'status', 'None')}"
+                f"페이지 로드 실패: {url}, status={getattr(page, 'status', None)}"
             )
             return None, None
 
@@ -258,8 +265,8 @@ def _extract_title(page) -> str:
     try:
         title_tags = page.css("title")
         if title_tags:
-            text = title_tags[0].text
-            if text:
+            text = getattr(title_tags[0], 'text', '') or ''
+            if text.strip():
                 return text.strip()
     except Exception:
         pass
@@ -276,8 +283,8 @@ def _extract_title(page) -> str:
     try:
         h1_tags = page.css("h1")
         if h1_tags:
-            text = h1_tags[0].text
-            if text:
+            text = getattr(h1_tags[0], 'text', '') or ''
+            if text.strip():
                 return text.strip()
     except Exception:
         pass
@@ -567,6 +574,7 @@ def brand_info_to_dict(info: BrandInfo) -> dict[str, Any]:
     """BrandInfo를 딕셔너리로 변환합니다."""
     return {
         "crawled_at": info.crawled_at,
+        "brand_name": info.brand_name,
         "main_page": info.main_page,
         "sub_pages": info.sub_pages,
         "extracted_strengths": info.extracted_strengths,

@@ -93,7 +93,7 @@ GEMINI_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
 GEMINI_ANALYSIS_MODEL: str = "gemini-2.5-flash"
 
 # Claude Haiku 심층 분석 설정 (한국어 분석 정확도 향상)
-CLAUDE_HAIKU_MODEL: str = "claude-haiku-4-20250514"
+CLAUDE_HAIKU_MODEL: str = "claude-haiku-4-5-20251001"
 CLAUDE_ANALYSIS_MAX_TOKENS: int = 2048
 
 # 출력 디렉토리

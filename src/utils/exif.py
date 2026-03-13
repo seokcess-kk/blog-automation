@@ -47,14 +47,14 @@ def _generate_random_datetime(days_back_min: int = 1, days_back_max: int = 7) ->
     return target_date.strftime("%Y:%m:%d %H:%M:%S")
 
 
-def _convert_to_rational(value: float) -> tuple[tuple[int, int], ...]:
+def _convert_to_rational(value: float) -> tuple[tuple[int, int]]:
     """float 값을 EXIF rational 형식으로 변환.
 
     Args:
         value: 변환할 float 값
 
     Returns:
-        EXIF rational 형식 튜플
+        단일 rational 값을 담은 튜플
     """
     # 간단한 변환: 소수점 4자리까지
     numerator = int(value * 10000)

@@ -212,6 +212,8 @@ def generate_content(
                 response_text = _call_claude_api(client, retry_prompt)
 
         # 구조 검증
+        if content_data is None:
+            raise ContentGenerationError("Failed to parse content data from API response")
         try:
             content = _validate_content_structure(content_data)
         except ValueError as e:

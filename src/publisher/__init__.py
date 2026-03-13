@@ -241,8 +241,8 @@ def _extract_image_paths(images: list) -> list:
 def _update_draft_status(
     draft_id: str,
     status: str,
-    post_url: str = None,
-    error: str = None
+    post_url: str | None = None,
+    error: str | None = None,
 ) -> None:
     """
     드래프트 상태를 업데이트합니다.
@@ -299,7 +299,7 @@ def _log_publish_result(
     blog_id: str,
     action: str,
     status: str,
-    error_detail: str = None
+    error_detail: str | None = None,
 ) -> None:
     """
     발행 결과를 로깅합니다.

@@ -10,6 +10,7 @@
 """
 
 import logging
+import re
 from typing import Any, TypedDict
 
 from src.generator.prompt_builder import build_prompt, PatternData
@@ -35,6 +36,61 @@ __all__ = [
     "ImageGenerationError",
     "PatternData",
 ]
+
+
+def _insert_images_into_html(body_html: str, images: list[GeneratedImage]) -> str:
+    """
+    생성된 이미지를 본문 HTML의 h2 섹션 사이에 균등 삽입합니다.
+
+    h2 태그 위치를 기준으로 이미지를 분산 배치합니다.
+    첫 번째 이미지는 첫 h2 앞, 나머지는 h2 섹션 사이에 삽입됩니다.
+    """
+    if not images:
+        return body_html
+
+    # h2 태그 위치 찾기
+    h2_positions = [m.start() for m in re.finditer(r"<h2[^>]*>", body_html)]
+
+    if not h2_positions:
+        # h2가 없으면 본문 끝에 모두 추가
+        img_html = "\n".join(_make_img_tag(img) for img in images)
+        return body_html + img_html
+
+    # 삽입 지점 계산: h2 사이에 이미지를 균등 분배
+    # 첫 이미지는 첫 h2 앞, 나머지는 h2 앞에 삽입
+    insert_points: list[int] = []
+    if len(images) <= len(h2_positions):
+        # 이미지 수 <= h2 수: 균등 간격으로 배치
+        step = max(1, len(h2_positions) // len(images))
+        for i in range(len(images)):
+            idx = min(i * step, len(h2_positions) - 1)
+            insert_points.append(h2_positions[idx])
+    else:
+        # 이미지 수 > h2 수: 각 h2 앞에 하나씩, 남은 건 마지막 h2 뒤에 분산 배치
+        insert_points = list(h2_positions)
+        remaining = len(images) - len(h2_positions)
+        last_h2_pos = h2_positions[-1]
+        body_after = len(body_html) - last_h2_pos
+        spacing = body_after // (remaining + 1) if remaining > 0 else 0
+        for j in range(1, remaining + 1):
+            insert_points.append(last_h2_pos + spacing * j)
+
+    # 뒤에서부터 삽입 (위치가 밀리지 않도록)
+    paired = list(zip(insert_points, images))
+    paired.sort(key=lambda x: x[0], reverse=True)
+
+    for pos, img in paired:
+        img_tag = _make_img_tag(img)
+        body_html = body_html[:pos] + img_tag + body_html[pos:]
+
+    return body_html
+
+
+def _make_img_tag(img: GeneratedImage) -> str:
+    """이미지 HTML 태그를 생성합니다."""
+    filename = img.get("filename", "")
+    alt_text = (img.get("prompt", "") or "")[:100]
+    return f'\n<div class="se-image"><img src="../images/{filename}" alt="{alt_text}"></div>\n'
 
 
 class ContentResult(TypedDict):
@@ -125,10 +181,16 @@ def generate_content(
     else:
         logger.info("Step 3: Skipping image generation")
 
+    # Step 4: 이미지를 본문 HTML에 삽입
+    body_html = content["body_html"]
+    if images:
+        body_html = _insert_images_into_html(body_html, images)
+        logger.info(f"Step 4: Inserted {len(images)} images into body HTML")
+
     result = ContentResult(
         title=content["title"],
         meta_description=content["meta_description"],
-        body_html=content["body_html"],
+        body_html=body_html,
         tags=content["tags"],
         images=images,
     )

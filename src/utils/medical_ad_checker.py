@@ -267,7 +267,7 @@ def _check_side_effect_omission(text: str) -> list[Violation]:
                     suggestion=f"'{kw}' 언급 시 '개인에 따라 차이가 있을 수 있습니다' 등 부작용/개인차 안내 추가 권장",
                 )
             )
-            break  # 한 번만 경고
+            break  # 의도적: 시술 키워드당 한 번만 경고 (동일 카테고리 중복 알림 방지)
 
     return violations
 
@@ -350,6 +350,9 @@ def check_violations(text: str) -> list[Violation]:
         critical: 확실 - 법56조②2호, 시행령23조①2호
     """
     violations: list[Violation] = []
+
+    # HTML 태그 제거 (태그 내부 속성 오탐 방지)
+    text = re.sub(r"<[^>]+>", " ", text)
 
     # 카테고리 1: 치료효과 오인 유발 (critical)
     violations.extend(

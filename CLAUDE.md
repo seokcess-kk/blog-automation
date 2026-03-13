@@ -99,26 +99,25 @@ response = client.models.generate_content(
 
 ### 브랜드 정보 통합
 
-브랜드 크롤링 → Gemini Flash 분석 → 프롬프트에 주입하여 원고에 브랜드 자연스럽게 통합.
+브랜드 크롤링 → Gemini Flash 분석 → 프롬프트에 주입하여 정보성 콘텐츠 내에서 브랜드 자연스럽게 통합.
 
 ```python
 # src/analyzer/brand_crawler.py
 @dataclass
 class BrandInfo:
-    brand_name: str           # 브랜드명 (원고에서 4~5회 언급)
+    brand_name: str           # 브랜드명 (원고에서 2~3회 이내)
     summary: str              # 한 줄 요약
-    programs: list[str]       # 대표 프로그램명 (필수 언급)
-    stats: list[str]          # 실적/통계 (신뢰감 형성)
-    location: dict[str, str]  # 위치 정보 (지역 키워드 강화)
+    programs: list[str]       # 대표 프로그램명
+    stats: list[str]          # 실적/통계
+    location: dict[str, str]  # 위치 정보
     team: list[str]           # 의료진/전문가 정보
 ```
 
-**브랜드 통합 규칙** (`prompts/pattern_injection.md` 지침 12번):
-- 브랜드명 최소 4~5회 분산 언급 (도입 1회, 중간 2~3회, 마무리 1회)
-- 브랜드 전용 섹션 1개 작성 (■ 형식)
-- 대표 프로그램명 반드시 언급
-- 실적/통계 숫자로 신뢰감 형성
-- 위치 정보 마무리 섹션에 포함
+**콘텐츠 방향: 정보성 (enforcement: block)**
+- **모든 원고는 정보 제공형**으로 작성 (광고/소개성, 후기/경험담 금지)
+- 전체 본문의 80% 이상은 순수 정보 콘텐츠
+- 브랜드명 2~3회 이내, 브랜드 전용 섹션 1개만 (팩트 중심)
+- 직접적 광고, 방문 유도(CTA), 가격/이벤트 언급 금지
 
 ### Claude Haiku 심층 분석
 

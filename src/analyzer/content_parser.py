@@ -163,7 +163,7 @@ def parse_blog_content(
         page = fetcher.fetch(converted_url, timeout=timeout * 1000)
 
         if page is None or page.status != 200:
-            logger.warning(f"페이지 로드 실패: {url}, status={getattr(page, 'status', 'None')}")
+            logger.warning(f"페이지 로드 실패: {url}, status={getattr(page, 'status', None)}")
             return None
 
         # 본문 컨테이너 추출 (SE 에디터 / 구 에디터)
@@ -298,7 +298,8 @@ def _extract_title(page) -> str:
         try:
             elements = page.css(selector)
             if elements:
-                text = elements[0].text.strip()
+                text = getattr(elements[0], 'text', '') or ''
+                text = text.strip()
                 if text:
                     return text
         except Exception:
@@ -616,7 +617,7 @@ def _extract_headings(container) -> list[str]:
         try:
             elements = container.css(selector)
             for elem in elements:
-                text = elem.text.strip() if hasattr(elem, 'text') else ""
+                text = (getattr(elem, 'text', '') or '').strip()
                 # 짧은 텍스트만 소제목으로 간주 (5~50자)
                 if text and 5 <= len(text) <= 50:
                     if text not in headings:

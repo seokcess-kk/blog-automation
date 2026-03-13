@@ -172,12 +172,23 @@ def _extract_title_patterns(titles: list[str], keyword: str) -> list[str]:
     avg_length = sum(lengths) / len(lengths) if lengths else 0
     patterns.append(f"avg_title_length:{round(avg_length)}")
 
-    # 공통 접미사 패턴 (예: "추천", "후기", "리뷰")
-    suffix_candidates = ["추천", "후기", "리뷰", "정리", "비교", "TOP", "BEST"]
+    # 공통 접미사 패턴 (정보성 콘텐츠에 적합한 것만)
+    # 후기/리뷰/추천은 정보성 원칙 위반이므로 제외
+    _NON_INFORMATIONAL_SUFFIXES = {"후기", "리뷰", "추천", "체험", "경험"}
+    suffix_candidates = ["정리", "비교", "TOP", "BEST", "가이드", "방법", "총정리"]
     for suffix in suffix_candidates:
         count = sum(1 for t in titles if suffix in t)
         if count >= len(titles) / 2:  # 50% 이상에서 발견
             patterns.append(f"common_suffix:{suffix}")
+
+    # 후기/리뷰 패턴이 발견되면 로그 경고 (생성 시 정보성으로 전환)
+    for non_info_suffix in _NON_INFORMATIONAL_SUFFIXES:
+        count = sum(1 for t in titles if non_info_suffix in t)
+        if count >= len(titles) / 2:
+            logger.info(
+                f"상위글에 '{non_info_suffix}' 패턴 빈출({count}/{len(titles)}) "
+                f"→ 정보성 원칙에 따라 패턴에서 제외"
+            )
 
     # 숫자 포함 패턴 (예: "TOP 5", "10가지")
     number_count = sum(1 for t in titles if re.search(r'\d+', t))
@@ -246,8 +257,8 @@ def _find_common_keywords(contents: list[ParsedContent]) -> list[str]:
         for kw in content.related_keywords:
             all_keywords[kw] += 1
 
-    # 2개 이상의 콘텐츠에서 등장하는 키워드만
-    min_occurrence = max(2, len(contents) // 2)
+    # 소표본(3개 이하) 시 min_occurrence 보정
+    min_occurrence = 2 if len(contents) <= 3 else max(2, len(contents) // 2)
     common_keywords = [
         kw for kw, count in all_keywords.most_common(20)
         if count >= min_occurrence

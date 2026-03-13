@@ -176,7 +176,20 @@ def _insert_images_between_sections(body_html: str, images: list[dict]) -> str:
     parts = re.split(r'(?=<h2[\s>])', body_html)
 
     if len(parts) <= 1:
-        # h2가 없으면 본문 끝에 이미지 추가
+        # h2가 없으면 p 태그 사이에 이미지 분산 배치
+        p_parts = re.split(r'(?=<p[\s>])', body_html)
+        if len(p_parts) > 1:
+            result_parts = []
+            img_idx = 0
+            spacing = max(1, (len(p_parts) - 1) // (len(images) + 1))
+            for i, part in enumerate(p_parts):
+                result_parts.append(part)
+                if i > 0 and i % spacing == 0 and img_idx < len(images):
+                    result_parts.append(_build_image_tags([images[img_idx]]))
+                    img_idx += 1
+            if img_idx < len(images):
+                result_parts.append(_build_image_tags(images[img_idx:]))
+            return "\n".join(result_parts)
         img_tags = _build_image_tags(images)
         return body_html + "\n" + img_tags
 

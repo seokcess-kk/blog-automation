@@ -6,6 +6,7 @@ Google AI Studio의 gemini-3-pro-image-preview 모델을 사용하여
 """
 
 import base64
+import binascii
 import logging
 import time
 import uuid
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 # 재시도 설정
 RATE_LIMIT_BACKOFF = [10, 30, 60]  # 초 단위
 MAX_SAFETY_RETRIES = 3
+IMAGE_GENERATION_DELAY = 2  # 연속 호출 방지 딜레이 (초)
 
 # 프롬프트 후처리 문구
 IMAGE_PROMPT_SUFFIX = ", professional blog illustration, clean design, Korean aesthetic, no text"
@@ -110,7 +112,7 @@ def _sanitize_prompt_for_safety(prompt: str, attempt: int) -> str:
     }
 
     modified = prompt
-    for original, replacement in sanitize_map.items():
+    for original, replacement in sorted(sanitize_map.items(), key=lambda x: len(x[0]), reverse=True):
         modified = modified.replace(original, replacement)
 
     # 추가 수정 (attempt에 따라)
@@ -186,26 +188,26 @@ def generate_image(
 
             # Base64 디코딩 (필요한 경우)
             if isinstance(image_bytes, str):
-                image_bytes = base64.b64decode(image_bytes)
+                try:
+                    image_bytes = base64.b64decode(image_bytes)
+                except (binascii.Error, ValueError) as e:
+                    raise ImageGenerationError(f"Base64 decode failed: {e}")
 
             # 파일 저장
             filename = f"{keyword_id or 'img'}_{uuid.uuid4().hex[:8]}.jpg"
             temp_path = output_dir / f"temp_{filename}"
             final_path = output_dir / filename
 
-            # 임시 파일로 저장
+            # 임시 파일로 저장 → EXIF 삽입 → 정리
             temp_path.write_bytes(image_bytes)
-
-            # EXIF 삽입
-            inject_exif(
-                str(temp_path),
-                str(final_path),
-                region_gps=region_gps,
-            )
-
-            # 임시 파일 삭제
-            if temp_path.exists():
-                temp_path.unlink()
+            try:
+                inject_exif(
+                    str(temp_path),
+                    str(final_path),
+                    region_gps=region_gps,
+                )
+            finally:
+                temp_path.unlink(missing_ok=True)
 
             logger.info(f"Image generated: {final_path}")
 
@@ -215,6 +217,8 @@ def generate_image(
                 filename=filename,
             )
 
+        except ImageGenerationError:
+            raise
         except Exception as e:
             error_str = str(e).lower()
 
@@ -281,7 +285,7 @@ def generate_images(
 
             # 연속 호출 방지를 위한 딜레이
             if i < len(prompts) - 1:
-                time.sleep(2)
+                time.sleep(IMAGE_GENERATION_DELAY)
 
         except ImageGenerationError as e:
             logger.error(f"Failed to generate image {i + 1}: {e}")

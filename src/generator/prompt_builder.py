@@ -6,6 +6,7 @@ Claude API 호출용 프롬프트를 조립합니다.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -113,11 +114,14 @@ def _format_deep_analysis(deep: dict[str, Any]) -> str:
         lines.append(guidelines)
         lines.append("")
 
-    # 개별 블로그 분석 요약 (인상적인 표현)
+    # 개별 블로그 분석 요약 (인상적인 표현 — 비정보성 표현 필터링)
     source_analyses = deep.get("source_analyses", [])
     all_phrases = []
+    _non_info_phrase_kw = {"후기", "내돈내산", "리뷰", "체험", "경험담", "성공기", "솔직"}
     for sa in source_analyses:
-        all_phrases.extend(sa.get("key_phrases", []))
+        for phrase in sa.get("key_phrases", []):
+            if not any(kw in phrase for kw in _non_info_phrase_kw):
+                all_phrases.append(phrase)
     if all_phrases:
         lines.append("**상위노출 글의 인상적인 표현 (참고용)**:")
         for phrase in all_phrases[:15]:
@@ -276,14 +280,25 @@ def build_prompt(
     if pattern_data is None:
         pattern_data = {}
 
-    region = region or "전국"
+    if region is None:
+        region = "전국"
+        logger.info("region 미지정, 기본값 '전국' 사용")
     content_angle = content_angle or "정보 제공형"
+
+    # 정보성 원칙: title_patterns에서 비정보성 접미사 필터링
+    raw_title_patterns = pattern_data.get("title_patterns", "분석된 패턴 없음")
+    if isinstance(raw_title_patterns, list):
+        _NON_INFO_SUFFIXES = {"후기", "리뷰", "추천", "체험", "경험"}
+        raw_title_patterns = [
+            p for p in raw_title_patterns
+            if not any(f"common_suffix:{s}" == p for s in _NON_INFO_SUFFIXES)
+        ]
 
     # 패턴 데이터 기본값
     avg_char_count = pattern_data.get("avg_char_count", 2000)
     avg_image_count = min(pattern_data.get("avg_image_count", 3), 10)  # 최대 10개 제한
     avg_heading_count = pattern_data.get("avg_heading_count", 4)
-    title_patterns = pattern_data.get("title_patterns", "분석된 패턴 없음")
+    title_patterns = raw_title_patterns
     keyword_placement = pattern_data.get("keyword_placement", "제목, 첫 문단, 소제목에 키워드 배치")
     related_keywords = pattern_data.get("related_keywords", "분석된 연관 키워드 없음")
     content_structure = pattern_data.get("content_structure", "서론-본론-결론 구조")
@@ -305,6 +320,18 @@ def build_prompt(
     common_topics = pattern_data.get("common_topics")
     if not common_topics and deep_analysis:
         common_topics = deep_analysis.get("common_topics", [])
+
+    # 정보성 원칙: 비정보성 토픽 필터링
+    _NON_INFORMATIONAL_KEYWORDS = {"후기", "체험", "리뷰", "경험담", "내돈내산", "경험 공유", "예고"}
+    if common_topics:
+        filtered = []
+        for t in common_topics:
+            topic_name = t.get("topic", "")
+            if not any(kw in topic_name for kw in _NON_INFORMATIONAL_KEYWORDS):
+                filtered.append(t)
+            else:
+                logger.debug(f"비정보성 토픽 제외: {topic_name}")
+        common_topics = filtered
 
     filtered_competitors = pattern_data.get("filtered_competitors")
     if not filtered_competitors and deep_analysis:
@@ -334,9 +361,12 @@ def build_prompt(
         "{{topic_outline}}": topic_outline if topic_outline else "토픽 구성 제안 없음",
     }
 
-    user_prompt = pattern_template
-    for placeholder, value in variables.items():
-        user_prompt = user_prompt.replace(placeholder, value)
+    # 단일 패스 치환 (치환 결과가 다른 플레이스홀더로 재치환되는 것을 방지)
+    def _single_pass_replace(template: str, vars_map: dict[str, str]) -> str:
+        pattern = re.compile("|".join(re.escape(k) for k in vars_map.keys()))
+        return pattern.sub(lambda m: vars_map[m.group(0)], template)
+
+    user_prompt = _single_pass_replace(pattern_template, variables)
 
     # 최종 유저 프롬프트 (작성 요청 추가)
     user_prompt += f"\n\n---\n\n위 지침에 따라 '{keyword}' 키워드로 블로그 글을 작성해주세요."

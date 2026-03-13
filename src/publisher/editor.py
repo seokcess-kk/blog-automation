@@ -172,9 +172,9 @@ class BlogEditor:
 
         for selector in title_selectors:
             try:
-                title_element = self._get_locator(selector).first
-                if title_element.count() > 0:
-                    title_element.click()
+                locator = self._get_locator(selector)
+                if locator.count() > 0:
+                    locator.first.click()
                     human_delay(300, 600)
                     logger.info(f"제목 영역 클릭: {selector}")
                     break
@@ -273,8 +273,8 @@ class BlogEditor:
                         parent_class = elem.evaluate("el => el.closest('.se-documentTitle') ? 'title' : 'body'")
                         if parent_class == 'title':
                             continue
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"본문/제목 구분 실패, 본문으로 진행: {e}")
 
                     elem.click()
                     human_delay(500, 800)
@@ -319,9 +319,9 @@ class BlogEditor:
             ]
             for selector in body_selectors:
                 try:
-                    elem = self._get_locator(selector).first
-                    if elem.count() > 0:
-                        elem.click()
+                    locator = self._get_locator(selector)
+                    if locator.count() > 0:
+                        locator.first.click()
                         human_delay(300, 500)
                         break
                 except Exception:
@@ -413,6 +413,7 @@ class BlogEditor:
                     human_delay(100, 200)
                     self._type_text(text)
                     self.page.keyboard.press("Enter")
+                    human_delay(50, 150)
                     self.page.keyboard.press("Enter")  # 빈 줄로 구분
                     human_delay(200, 400)
                     logger.info(f"소제목 입력 (H2): {text[:30]}...")
@@ -425,6 +426,7 @@ class BlogEditor:
                     human_delay(100, 200)
                     self._type_text(text)
                     self.page.keyboard.press("Enter")
+                    human_delay(50, 150)
                     self.page.keyboard.press("Enter")  # 빈 줄로 구분
                     human_delay(200, 400)
                     logger.info(f"소제목 입력 (H3): {text[:30]}...")
@@ -437,7 +439,6 @@ class BlogEditor:
 
                 # 이미지 플레이스홀더 확인
                 if '[IMAGE_PLACEHOLDER_' in text:
-                    import re
                     match = re.search(r'\[IMAGE_PLACEHOLDER_(\d+)\]', text)
                     if match and int(match.group(1)) < len(images):
                         self._insert_image(images[int(match.group(1))])
@@ -508,7 +509,6 @@ class BlogEditor:
         """
         # 이미지 플레이스홀더 확인
         text = str(element)
-        import re
         placeholder_match = re.search(r'\[IMAGE_PLACEHOLDER_(\d+)\]', text)
 
         if placeholder_match:

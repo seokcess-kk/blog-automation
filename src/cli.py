@@ -31,7 +31,10 @@ logger = logging.getLogger(__name__)
 
 def output_json(data: dict[str, Any]) -> None:
     """JSON 결과를 stdout으로 출력합니다."""
-    print(json.dumps(data, ensure_ascii=False, indent=2))
+    import sys
+    sys.stdout.buffer.write(json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8"))
+    sys.stdout.buffer.write(b"\n")
+    sys.stdout.buffer.flush()
 
 
 def output_error(message: str) -> None:
@@ -266,11 +269,11 @@ def generate(keyword_id: str, skip_images: bool, output_html: bool):
         logger.info(f"원고 생성 시작: keyword_id={keyword_id}")
 
         # 1. 패턴 데이터 로드
-        patterns = supabase_select("patterns", {"keyword_id": keyword_id})
+        patterns = supabase_select("patterns", {"keyword_id": keyword_id}) or []
 
         if not patterns:
             # keyword_id로 직접 patterns 조회 시도
-            patterns = supabase_select("patterns", {"id": keyword_id})
+            patterns = supabase_select("patterns", {"id": keyword_id}) or []
 
         pattern_data = patterns[0] if patterns else None
         keyword = pattern_data.get("keyword", keyword_id) if pattern_data else keyword_id
@@ -284,10 +287,10 @@ def generate(keyword_id: str, skip_images: bool, output_html: bool):
                 logger.warning("raw_data JSON 파싱 실패, 빈 딕셔너리로 대체")
                 raw_data = {}
 
-        # brand_info가 raw_data 내부에 있는 경우 추출하여 최상위로
+        # brand_info가 raw_data 내부에 있는 경우 pattern_data로 복사
         if raw_data and isinstance(raw_data, dict):
-            if "brand_info" in raw_data and "brand_info" not in raw_data:
-                pass  # 이미 있음
+            if "brand_info" in raw_data and pattern_data is not None and "brand_info" not in pattern_data:
+                pattern_data["brand_info"] = raw_data["brand_info"]
             # deep_analysis에서 토픽/경쟁사 정보 추출하여 최상위로
             deep_analysis = raw_data.get("deep_analysis")
             if deep_analysis and isinstance(deep_analysis, dict):
@@ -437,9 +440,7 @@ def publish(draft_id: str, blog_account: str):
         logger.info(f"발행 시작: draft_id={draft_id}")
 
         # 1. 계정 정보 확인
-        account = BLOG_ACCOUNTS.get(blog_account) if hasattr(
-            __import__("src.config", fromlist=["BLOG_ACCOUNTS"]), "BLOG_ACCOUNTS"
-        ) else None
+        account = BLOG_ACCOUNTS.get(blog_account)
 
         blog_id = account.get("blog_id") if account else blog_account
 
@@ -478,14 +479,16 @@ def publish(draft_id: str, blog_account: str):
                 },
             )
         else:
-            # 실패 로깅
+            # 실패 로깅: retry_count 증분
+            draft_data = (supabase_select("drafts", {"id": draft_id}) or [None])[0]
+            current_retry = draft_data.get("retry_count", 0) if draft_data else 0
             supabase_update(
                 "drafts",
                 {"id": draft_id},
                 {
                     "status": "failed",
                     "error_log": result.get("error"),
-                    "retry_count": 1,  # TODO: increment
+                    "retry_count": current_retry + 1,
                 },
             )
 
