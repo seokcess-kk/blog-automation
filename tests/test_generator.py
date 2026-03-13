@@ -292,9 +292,9 @@ class TestBrandInfoFormatting:
 
         result = build_prompt(keyword="테스트")
 
-        # 작성 지침 12번이 포함되어야 함
+        # 작성 지침 13번이 포함되어야 함
         assert "브랜드 통합" in result["user"]
-        assert "2~3회" in result["user"]
+        assert "4~5회" in result["user"]
 
     def test_format_brand_info_with_new_fields(self):
         """새로 추가된 브랜드 필드(programs, location, stats)가 포맷팅되는지 테스트."""

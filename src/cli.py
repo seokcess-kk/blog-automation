@@ -232,7 +232,6 @@ def analyze(keyword: str, top_n: int, save_to_db: bool, no_deep: bool, brand_url
                 "keyword_placement": result["pattern"].get("keyword_placement"),
                 "related_keywords": result["pattern"].get("related_keywords"),
                 "content_structure": result["pattern"].get("content_structure"),
-                "deep_analysis": result["pattern"].get("deep_analysis"),
                 "raw_data": raw_data,
                 "analyzed_at": datetime.now().isoformat(),
             }
@@ -358,7 +357,7 @@ def generate(keyword_id: str, skip_images: bool, output_html: bool):
                 title=content_result["title"],
                 body_html=content_result["body_html"],
                 tags=content_result.get("tags", []),
-                images=image_list,
+                images=[],  # body_html에 이미 이미지가 삽입되어 있으므로 중복 방지
                 keyword=keyword,
             )
             result["html_path"] = str(html_path)
