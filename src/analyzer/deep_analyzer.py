@@ -45,7 +45,9 @@ class BlogDeepAnalysis:
     """콘텐츠 유형: '리뷰형', '정보형', '비교형', '가이드형' 등"""
 
     image_placement: list[dict[str, Any]]
-    """[{"position": "h2 직후", "purpose": "시각적 도입", "count": 1}]"""
+    """[{"position": "h2 직후", "purpose": "시각적 도입", "count": 1,
+         "image_type": "인물/시술전후/인포그래픽 등", "style": "실사/일러스트 등",
+         "description": "이미지 내용 추론"}]"""
 
     keyword_usage_style: str
     """키워드 자연스러운 활용법"""
@@ -102,7 +104,13 @@ def _build_single_blog_prompt(content: ParsedContent, keyword: str) -> str:
         for s in content.sections:
             section_text = s.text[:500] if len(s.text) > 500 else s.text
             heading_label = f"[{s.heading_tag}] {s.heading}" if s.heading else "[도입부]"
-            img_info = f" (이미지 {s.image_count}개)" if s.image_count > 0 else ""
+            img_info = ""
+            if s.image_count > 0:
+                img_info = f" (이미지 {s.image_count}개)"
+                # 이미지 컨텍스트 추가 (최대 2개)
+                if s.image_contexts:
+                    contexts = s.image_contexts[:2]
+                    img_info += f"\n  [이미지 주변 텍스트: {' / '.join(ctx[:80] for ctx in contexts)}]"
             sections_text += f"\n### {heading_label}{img_info}\n{section_text}\n"
     elif content.full_text:
         # fallback: sections가 비어있으면 full_text 앞부분 전달
@@ -133,7 +141,14 @@ def _build_single_blog_prompt(content: ParsedContent, keyword: str) -> str:
     ],
     "content_type": "콘텐츠 유형 (리뷰형/정보형/비교형/가이드형/경험담 등)",
     "image_placement": [
-        {{"position": "위치 설명", "purpose": "이미지 목적", "count": 1}}
+        {{
+            "position": "위치 설명 (도입부/섹션명 뒤/마무리 등)",
+            "purpose": "이미지 목적 (시각적 도입/정보 전달/신뢰감 형성/분위기 연출 등)",
+            "count": 1,
+            "image_type": "이미지 종류 (인물사진/시술전후/인포그래픽/제품/시설내부/음식/일러스트/캡처화면 등)",
+            "style": "이미지 스타일 (실사촬영/스톡이미지/일러스트/그래픽디자인/스크린캡처 등)",
+            "description": "이미지 내용 추론 (주변 텍스트 기반으로 어떤 이미지일지 구체적으로 설명)"
+        }}
     ],
     "keyword_usage_style": "키워드 활용 방식 설명",
     "key_phrases": ["인상적인 표현 5~10개"],
@@ -148,6 +163,12 @@ def _build_single_blog_prompt(content: ParsedContent, keyword: str) -> str:
 - main_topics: 이 글이 다루는 핵심 주제들 (예: "다이어트 원리", "체질 분석", "시술 과정", "효과와 주의사항" 등)
 - competitor_brands: 특정 업체/브랜드명이 있다면 추출 (일반 명사인 "한의원", "병원"은 제외, "XX한의원", "YY클리닉" 같은 고유명사만)
 - informational_content: 브랜드 광고가 아닌, 독자에게 유용한 정보 부분만 요약
+
+## 이미지 분석 가이드 (중요!)
+- 각 섹션의 이미지 개수와 주변 텍스트(컨텍스트)를 바탕으로 이미지 종류를 추론해주세요
+- image_type 예시: 인물사진(원장/직원), 시술전후(비포애프터), 인포그래픽(도표/차트), 시설내부(인테리어), 제품(한약/보조제), 음식(식단), 일러스트(설명용 그림), 캡처화면(앱/예약시스템)
+- style 예시: 실사촬영(직접 촬영), 스톡이미지(구매 이미지), 직접제작그래픽(포토샵 편집), 일러스트(손그림/벡터), 스크린캡처
+- description: 주변 텍스트 맥락에서 "이 위치에는 ~한 이미지가 있을 것"이라고 구체적으로 추론
 
 ## 중요 참고사항
 우리는 이 분석 결과를 바탕으로 **정보성 원고만 생성**합니다 (후기/경험담/리뷰 금지).
@@ -203,9 +224,23 @@ def _build_aggregation_prompt(analyses: list[BlogDeepAnalysis], keyword: str) ->
 {{
     "dominant_tone": "지배적 문체 (가장 많이 사용되는 톤)",
     "common_structure": "공통 전개 구조 (도입→본론→결론 등 상세 설명)",
-    "image_strategy": "종합 이미지 배치 전략 (위치, 개수, 목적)",
+    "image_strategy": {{
+        "avg_count": 10,
+        "placement_pattern": "이미지 배치 패턴 설명 (섹션당 2-3개, 텍스트 사이 분산 등)",
+        "common_types": ["가장 많이 사용되는 이미지 종류 목록"],
+        "common_styles": ["가장 많이 사용되는 이미지 스타일 목록"],
+        "recommended_images": [
+            {{
+                "position": "추천 배치 위치",
+                "image_type": "추천 이미지 종류",
+                "style": "추천 스타일",
+                "description": "어떤 이미지를 넣어야 하는지 구체적 설명",
+                "purpose": "이 이미지의 목적"
+            }}
+        ]
+    }},
     "recommended_sections": [
-        {{"heading": "추천 소제목", "target_chars": 300, "image_count": 1, "role": "역할", "guidelines": "작성 지침"}}
+        {{"heading": "추천 소제목", "target_chars": 300, "image_count": 2, "role": "역할", "guidelines": "작성 지침", "image_suggestion": "이 섹션에 들어갈 이미지 설명"}}
     ],
     "writing_guidelines": "종합 작성 가이드라인 (문체, 어투, 핵심 포인트 등)",
     "common_topics": [
@@ -220,6 +255,13 @@ def _build_aggregation_prompt(analyses: list[BlogDeepAnalysis], keyword: str) ->
 - recommended_coverage: "필수"(3개 이상에서 언급), "권장"(2개에서 언급), "선택"(1개에서만 언급)
 - filtered_competitors: 감지된 모든 경쟁사 브랜드 (새 원고 작성 시 절대 언급 금지)
 - topic_outline: 정보성 원고 구성 제안 - 경쟁사 홍보가 아닌 순수 정보 전달 관점에서
+
+## 이미지 전략 종합 가이드
+- image_strategy.avg_count: 블로그당 평균 이미지 개수
+- image_strategy.common_types: 자주 사용되는 이미지 종류 (인물사진, 시술전후, 인포그래픽, 시설내부, 제품, 음식, 일러스트, 캡처화면 등)
+- image_strategy.common_styles: 자주 사용되는 스타일 (실사촬영, 스톡이미지, 직접제작 그래픽, 일러스트, 스크린캡처 등)
+- image_strategy.recommended_images: 새 원고 작성 시 추천하는 이미지 구성 (어떤 위치에 어떤 종류의 이미지를 넣을지)
+- recommended_sections의 image_suggestion: 각 섹션에 어울리는 이미지 설명
 
 ## 정보성 원칙 (반드시 준수)
 우리는 **정보 제공형 원고만 생성**합니다. 분석 대상이 후기/리뷰/경험담이더라도:

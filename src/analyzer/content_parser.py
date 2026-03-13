@@ -376,14 +376,26 @@ def _extract_images(container) -> list:
 
 def _is_icon_image(src: str) -> bool:
     """아이콘/이모티콘/장식용 이미지인지 확인합니다."""
+    src_lower = src.lower()
+
+    # 콘텐츠 이미지 도메인은 항상 통과 (네이버 블로그 본문 이미지)
+    content_domains = [
+        "postfiles.pstatic.net",
+        "blogfiles.pstatic.net",
+        "post-phinf.pstatic.net",
+        "mblogthumb-phinf.pstatic.net",
+    ]
+    if any(domain in src_lower for domain in content_domains):
+        return False
+
+    # 아이콘/장식용 이미지 패턴
     icon_patterns = [
         "icon", "emoji", "emoticon", "btn_", "bullet", "static.naver",
         "/separator", "/divider", "/spacer", "/blank", "transparent",
         "_logo", "/logo", "/badge", "sticker", "deco", "bg_", "/background",
         "_arrow", "/arrow", "_check.", "/dot.", "_dot_", "widget", "/banner",
-        "profile_", "thumb_", "s.pstatic.net",
+        "profile_", "thumb_", "ssl.pstatic.net", "s.pstatic.net/static",
     ]
-    src_lower = src.lower()
     return any(pattern in src_lower for pattern in icon_patterns)
 
 
