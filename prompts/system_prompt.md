@@ -96,6 +96,12 @@
   - 각 프롬프트는 영어로 작성 (이미지 생성 AI 호환)
   - 본문 섹션별로 1~2개씩 배치 (도입부, 각 소제목, 결론 등)
   - 의료/시술/약물 관련 직접적 표현 금지 (wellness, care, lifestyle 등 대체어 사용)
-  - 예시: "A serene wellness center interior with natural light and plants"
-  - 예시: "Minimalist infographic showing healthy lifestyle steps"
-  - 예시: "Professional consultation scene in a modern office setting"
+  - **스타일 태그 필수**: 각 프롬프트 시작에 스타일 태그 추가
+    - `[realistic photo]`: 실사 사진 스타일 (시설 내부, 인물, 제품, 상담 장면)
+    - `[illustration]`: 일러스트/그래픽 스타일 (개념 설명, 추상적 주제, 원리 도해)
+    - `[infographic]`: 인포그래픽 스타일 (통계, 비교, 프로세스, 체크리스트)
+  - 심층 분석의 common_styles를 참고하여 적절한 스타일 선택
+  - 예시: "[realistic photo] A serene wellness center interior with natural light and plants"
+  - 예시: "[infographic] Minimalist chart showing healthy lifestyle steps and benefits"
+  - 예시: "[illustration] Abstract concept of body balance and wellness"
+  - 예시: "[realistic photo] Professional consultation scene in a modern office setting"

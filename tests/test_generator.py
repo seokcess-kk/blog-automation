@@ -154,6 +154,95 @@ class TestImageGenerator:
         assert "path" in mock_image
         assert "alt" in mock_image
 
+    def test_parse_style_realistic(self):
+        """[realistic photo] 스타일 태그 파싱 테스트."""
+        from src.generator.image_generator import _parse_style
+
+        style, prompt = _parse_style("[realistic photo] Interior of wellness center")
+        assert style == "realistic"
+        assert prompt == "Interior of wellness center"
+
+    def test_parse_style_realistic_short(self):
+        """[realistic] 스타일 태그 파싱 테스트."""
+        from src.generator.image_generator import _parse_style
+
+        style, prompt = _parse_style("[realistic] Modern consultation room")
+        assert style == "realistic"
+        assert prompt == "Modern consultation room"
+
+    def test_parse_style_illustration(self):
+        """[illustration] 스타일 태그 파싱 테스트."""
+        from src.generator.image_generator import _parse_style
+
+        style, prompt = _parse_style("[illustration] Weight loss concept diagram")
+        assert style == "illustration"
+        assert prompt == "Weight loss concept diagram"
+
+    def test_parse_style_infographic(self):
+        """[infographic] 스타일 태그 파싱 테스트."""
+        from src.generator.image_generator import _parse_style
+
+        style, prompt = _parse_style("[infographic] Healthy lifestyle steps comparison")
+        assert style == "infographic"
+        assert prompt == "Healthy lifestyle steps comparison"
+
+    def test_parse_style_default(self):
+        """스타일 태그 없는 프롬프트 테스트."""
+        from src.generator.image_generator import _parse_style
+
+        style, prompt = _parse_style("No style tag prompt")
+        assert style == "default"
+        assert prompt == "No style tag prompt"
+
+    def test_parse_style_case_insensitive(self):
+        """대소문자 무관 스타일 태그 파싱 테스트."""
+        from src.generator.image_generator import _parse_style
+
+        style, prompt = _parse_style("[REALISTIC PHOTO] Test image")
+        assert style == "realistic"
+        assert prompt == "Test image"
+
+    def test_enhance_prompt_realistic_suffix(self):
+        """realistic 스타일에 올바른 suffix가 적용되는지 테스트."""
+        from src.generator.image_generator import _enhance_prompt, IMAGE_STYLE_SUFFIX
+
+        result = _enhance_prompt("[realistic photo] Wellness center interior")
+        assert "professional photography" in result
+        assert "natural lighting" in result
+        assert "illustration" not in result
+
+    def test_enhance_prompt_illustration_suffix(self):
+        """illustration 스타일에 올바른 suffix가 적용되는지 테스트."""
+        from src.generator.image_generator import _enhance_prompt
+
+        result = _enhance_prompt("[illustration] Body balance concept")
+        assert "blog illustration" in result
+        assert "clean design" in result
+
+    def test_enhance_prompt_infographic_suffix(self):
+        """infographic 스타일에 올바른 suffix가 적용되는지 테스트."""
+        from src.generator.image_generator import _enhance_prompt
+
+        result = _enhance_prompt("[infographic] Diet comparison chart")
+        assert "infographic design" in result
+        assert "data visualization" in result
+
+    def test_enhance_prompt_default_suffix(self):
+        """스타일 태그 없는 프롬프트에 기본 suffix가 적용되는지 테스트."""
+        from src.generator.image_generator import _enhance_prompt
+
+        result = _enhance_prompt("Simple prompt without style tag")
+        assert "blog illustration" in result  # default는 illustration과 동일
+
+    def test_enhance_prompt_skip_existing_suffix(self):
+        """이미 suffix가 포함된 프롬프트는 그대로 반환하는지 테스트."""
+        from src.generator.image_generator import _enhance_prompt
+
+        prompt = "[realistic photo] Already has professional photography style"
+        result = _enhance_prompt(prompt)
+        # 기존 suffix가 있으면 추가하지 않음
+        assert result.count("professional") == 1
+
     def test_image_generator_exif_applied(self):
         """이미지 생성 시 EXIF 적용 테스트 (mock)."""
         with patch("src.generator.image_generator.generate_images") as mock_gen:

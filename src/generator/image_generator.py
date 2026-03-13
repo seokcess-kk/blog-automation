@@ -25,8 +25,13 @@ RATE_LIMIT_BACKOFF = [10, 30, 60]  # 초 단위
 MAX_SAFETY_RETRIES = 3
 IMAGE_GENERATION_DELAY = 2  # 연속 호출 방지 딜레이 (초)
 
-# 프롬프트 후처리 문구
-IMAGE_PROMPT_SUFFIX = ", professional blog illustration, clean design, Korean aesthetic, no text"
+# 스타일별 프롬프트 suffix 정의
+IMAGE_STYLE_SUFFIX = {
+    "realistic": ", professional photography, high quality, natural lighting, Korean aesthetic, no text",
+    "illustration": ", professional blog illustration, clean design, Korean aesthetic, no text",
+    "infographic": ", clean infographic design, professional layout, data visualization, Korean aesthetic, no text",
+    "default": ", professional blog illustration, clean design, Korean aesthetic, no text",
+}
 
 
 class GeneratedImage(TypedDict):
@@ -48,9 +53,35 @@ def _create_client() -> genai.Client:
     return genai.Client(api_key=config.GOOGLE_AI_API_KEY)
 
 
+def _parse_style(prompt: str) -> tuple[str, str]:
+    """
+    프롬프트에서 [스타일] 태그를 추출합니다.
+
+    Args:
+        prompt: 원본 프롬프트 (예: "[realistic photo] Interior of wellness center")
+
+    Returns:
+        (스타일명, 태그 제거된 프롬프트) 튜플
+    """
+    import re
+    match = re.match(
+        r'\[(realistic photo|realistic|illustration|infographic)\]\s*',
+        prompt,
+        re.IGNORECASE
+    )
+    if match:
+        style = match.group(1).lower().replace(" photo", "")
+        clean_prompt = prompt[match.end():]
+        return style, clean_prompt
+    return "default", prompt
+
+
 def _enhance_prompt(prompt: str) -> str:
     """
     이미지 프롬프트를 개선합니다.
+
+    스타일 태그가 있으면 해당 스타일의 suffix를 적용하고,
+    없으면 기본(illustration) 스타일을 적용합니다.
 
     Args:
         prompt: 원본 프롬프트
@@ -58,10 +89,14 @@ def _enhance_prompt(prompt: str) -> str:
     Returns:
         개선된 프롬프트
     """
+    style, clean_prompt = _parse_style(prompt)
+    suffix = IMAGE_STYLE_SUFFIX.get(style, IMAGE_STYLE_SUFFIX["default"])
+
     # 이미 suffix가 포함되어 있으면 그대로 반환
-    if "professional blog illustration" in prompt.lower():
-        return prompt
-    return prompt.strip() + IMAGE_PROMPT_SUFFIX
+    if any(s in clean_prompt.lower() for s in ["professional", "illustration", "photography", "infographic"]):
+        return clean_prompt
+
+    return clean_prompt.strip() + suffix
 
 
 def _sanitize_prompt_for_safety(prompt: str, attempt: int) -> str:
